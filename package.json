@@ -1,0 +1,38 @@
+{
+  "name": "codex-quota-glance",
+  "version": "0.1.0",
+  "description": "Windows floating quota and token usage monitor for Codex and New API providers.",
+  "private": false,
+  "license": "MIT",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "test": "node scripts/run-tests.mjs",
+    "dev": "vite",
+    "tauri": "tauri",
+    "build": "vite build",
+    "desktop": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/start-desktop.ps1",
+    "install-shortcut": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/install-shortcut.ps1",
+    "package-desktop": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/package-desktop.ps1",
+    "electron": "npm run build && electron .",
+    "package-electron": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/package-electron.ps1",
+    "clean:generated": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/clean-generated.ps1",
+    "scan:secrets": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/scan-secrets.ps1",
+    "ci": "npm run scan:secrets && npm test && npm run build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.0.0",
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "electron": "^42.3.3",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0"
+  }
+}

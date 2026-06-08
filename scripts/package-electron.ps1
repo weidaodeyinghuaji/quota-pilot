@@ -95,12 +95,21 @@ try {
     throw "Electron packaging failed with exit code $LASTEXITCODE"
   }
 
-  $exe = Join-Path $root 'release-electron\Codex Quota Glance-win32-x64\Codex Quota Glance.exe'
+  $releaseRoot = Join-Path $root 'release-electron'
+  $appDirectory = Get-ChildItem -LiteralPath $releaseRoot -Directory |
+    Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'Codex Quota Glance.exe') } |
+    Select-Object -First 1
+  if (-not $appDirectory) {
+    $availableDirectories = (Get-ChildItem -LiteralPath $releaseRoot -Directory | Select-Object -ExpandProperty Name) -join ', '
+    throw "Packaged app directory not found under $releaseRoot. Available directories: $availableDirectories"
+  }
+
+  $exe = Join-Path $appDirectory.FullName 'Codex Quota Glance.exe'
   if (-not (Test-Path -LiteralPath $exe)) {
     throw "Packaged exe not found: $exe"
   }
 
-  $packagedBackend = Join-Path $root 'release-electron\Codex Quota Glance-win32-x64\resources\app\local-server.exe'
+  $packagedBackend = Join-Path $appDirectory.FullName 'resources\app\local-server.exe'
   if (-not (Test-Path -LiteralPath $packagedBackend)) {
     throw "Packaged backend exe not found: $packagedBackend"
   }
@@ -110,7 +119,7 @@ try {
     Remove-Item -LiteralPath $zip -Force
   }
   Compress-Archive `
-    -LiteralPath (Join-Path $root 'release-electron\Codex Quota Glance-win32-x64') `
+    -LiteralPath $appDirectory.FullName `
     -DestinationPath $zip `
     -Force
 

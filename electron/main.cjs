@@ -1,11 +1,9 @@
 const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, screen, shell } = require('electron');
-const { spawn } = require('node:child_process');
-const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
+const { startLocalBackend, stopLocalBackend } = require('./local-backend.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
-const PYTHON = process.env.CODEX_QUOTA_PYTHON || 'python';
 const PORT = 1420;
 const APP_URL = `http://127.0.0.1:${PORT}/`;
 const APP_USER_MODEL_ID = 'CodexQuotaGlance.App';
@@ -29,7 +27,6 @@ const TEXT = {
 let capsuleWindow = null;
 let settingsWindow = null;
 let tray = null;
-let backendProcess = null;
 let ownsBackend = false;
 let dragState = null;
 let detailOpen = false;
@@ -332,15 +329,9 @@ function resizeCapsuleWindow() {
     detailOffset: placement === 'top' ? detailHeight + WINDOW_MARGIN : 0,
     popoverShiftX: desiredDetailLeft - centeredDetailLeft
   };
-  if (placement === 'top') {
-    const changed = setCapsuleWindowBounds({ x, y, width, height });
-    sendWindowLayout(nextLayout);
-    if (changed) keepFloatingWindowOnTop();
-  } else {
-    sendWindowLayout(nextLayout);
-    const changed = setCapsuleWindowBounds({ x, y, width, height });
-    if (changed) keepFloatingWindowOnTop();
-  }
+  sendWindowLayout(nextLayout);
+  const changed = setCapsuleWindowBounds({ x, y, width, height });
+  if (changed) keepFloatingWindowOnTop();
   sendWindowLayoutSoon(nextLayout);
 }
 
@@ -484,25 +475,12 @@ function clamp(value, min, max) {
 
 async function ensureBackend() {
   if (await canConnect()) return;
-
-  const backend = resolveBackendCommand();
-  backendProcess = spawn(backend.command, backend.args, {
-    cwd: backend.cwd,
-    windowsHide: true,
-    stdio: 'ignore',
-    detached: false,
-    env: {
-      ...process.env,
-      CODEX_QUOTA_APP_ROOT: backend.appRoot,
-      CODEX_QUOTA_DIST_DIR: path.join(backend.appRoot, 'dist')
-    }
+  const appRoot = app.getAppPath();
+  await startLocalBackend({
+    appRoot,
+    distDir: path.join(appRoot, 'dist')
   });
   ownsBackend = true;
-
-  backendProcess.on('exit', () => {
-    backendProcess = null;
-    ownsBackend = false;
-  });
 
   const deadline = Date.now() + 10_000;
   while (Date.now() < deadline) {
@@ -510,36 +488,6 @@ async function ensureBackend() {
     await delay(250);
   }
   throw new Error(`Local backend failed to start on ${APP_URL}`);
-}
-
-function resolveBackendCommand() {
-  const packagedRoot = app.isPackaged ? process.resourcesPath : ROOT;
-  const packagedBackend = path.join(packagedRoot, 'app', 'local-server.exe');
-  if (fs.existsSync(packagedBackend)) {
-    return {
-      command: packagedBackend,
-      args: [],
-      cwd: path.dirname(packagedBackend),
-      appRoot: path.dirname(packagedBackend)
-    };
-  }
-
-  const localBackend = path.join(ROOT, 'local-server.exe');
-  if (fs.existsSync(localBackend)) {
-    return {
-      command: localBackend,
-      args: [],
-      cwd: ROOT,
-      appRoot: ROOT
-    };
-  }
-
-  return {
-    command: PYTHON,
-    args: ['local-server.py'],
-    cwd: ROOT,
-    appRoot: ROOT
-  };
 }
 
 function canConnect() {
@@ -566,8 +514,9 @@ app.on('window-all-closed', (event) => {
   event.preventDefault();
 });
 
-app.on('before-quit', () => {
-  if (ownsBackend && backendProcess) {
-    backendProcess.kill();
+app.on('before-quit', async () => {
+  if (ownsBackend) {
+    await stopLocalBackend();
+    ownsBackend = false;
   }
 });

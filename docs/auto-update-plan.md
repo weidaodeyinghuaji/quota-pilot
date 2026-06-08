@@ -1,39 +1,29 @@
 # Auto Update Plan
 
-当前版本发布绿色 zip，不内置自动更新。
+当前版本已加入 GitHub Releases 更新检测，并由 `electron-builder` 生成 Windows 安装包、便携版和绿色 zip。
 
-后续建议分两步：
+## 更新检测
 
-## 1. 更新检测
-
-在设置窗口增加“检查更新”按钮。
-
-请求：
+设置窗口的“关于”页可以手动检查：
 
 ```http
 GET https://api.github.com/repos/akitten-cn/codex-quota-glance/releases/latest
 ```
 
-比较：
+比较规则：
 
 - 当前版本：`package.json.version`
 - 最新版本：`tag_name` 去掉前缀 `v`
 
-只提示下载，不自动覆盖本地文件。
+当前只提示下载，不静默覆盖本地文件。
 
-## 2. 安装包和自动更新
+## 后续自动更新
 
-引入 `electron-builder`：
-
-- NSIS installer
-- portable artifact
-- GitHub Releases provider
-
-需要额外设计：
+项目已经使用 `electron-builder`，可以继续接入 GitHub Releases provider。真正自动更新前还需要确认：
 
 - 代码签名
 - 更新失败回滚
 - 用户数据目录迁移
 - 安装版和绿色版的差异说明
 
-当前优先保持绿色版，避免安装器误覆盖用户数据。
+当前策略是先提供检测和跳转下载，避免未签名环境下的自动覆盖风险。

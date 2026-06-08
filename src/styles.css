@@ -904,6 +904,45 @@ input[aria-invalid="true"] {
   cursor: not-allowed;
 }
 
+.update-link-button {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.update-reminder-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.22);
+  pointer-events: auto;
+}
+
+.update-reminder {
+  width: min(420px, calc(100vw - 48px));
+  border: 1px solid rgba(24, 32, 42, 0.14);
+  border-radius: 8px;
+  padding: 18px;
+  color: #17202c;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 24px 64px rgba(17, 24, 39, 0.22);
+}
+
+.update-reminder h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.update-reminder p {
+  margin: 0 0 14px;
+  color: #475467;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .connection-message {
   min-width: 0;
   color: #667085;

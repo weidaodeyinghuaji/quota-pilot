@@ -11,6 +11,8 @@ import { canUseNewApiLocalData } from './lib/newApiClient.mjs';
 import { buildSnapshots } from './lib/snapshotFactory.mjs';
 import { fetchCodexTokenSummary, fetchLatestCodexTokenUsage } from './lib/spendEvents.mjs';
 import { estimateTokenCost } from './lib/pricing.mjs';
+import { APP_VERSION, checkLatestRelease, GITHUB_RELEASES_URL } from './lib/updateChecker.mjs';
+import type { UpdateCheckState } from './types/settings';
 import {
   SETTINGS_STORAGE_KEY,
   loadAppSettings,
@@ -46,6 +48,12 @@ export default function App() {
   const [codexTokenSummary, setCodexTokenSummary] = React.useState(null);
   const seenSpendEventIdRef = React.useRef('');
   const [newApiError, setNewApiError] = React.useState('');
+  const [updateCheckState, setUpdateCheckState] = React.useState<UpdateCheckState>({
+    status: 'idle',
+    message: '尚未检查更新',
+    currentVersion: APP_VERSION
+  });
+  const [updateReminderDismissed, setUpdateReminderDismissed] = React.useState(false);
   const [connectionState, setConnectionState] = React.useState({
     status: 'idle',
     message: '',
@@ -69,6 +77,43 @@ export default function App() {
   React.useEffect(() => {
     saveAppSettings(undefined, settings);
   }, [settings]);
+
+  const runUpdateCheck = React.useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setUpdateCheckState((current) => ({
+        ...current,
+        status: 'loading',
+        message: '正在检查更新...'
+      }));
+    }
+
+    try {
+      const result = await checkLatestRelease({ currentVersion: APP_VERSION });
+      const message = result.isNewer
+        ? `发现新版本 ${result.latestTagName}`
+        : `已是最新版本 ${result.currentVersion}`;
+      setUpdateCheckState({
+        status: 'success',
+        message,
+        ...result
+      });
+
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '检查更新失败';
+      setUpdateCheckState((current) => ({
+        ...current,
+        status: 'error',
+        message
+      }));
+      return undefined;
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (isDesktopCapsule) return;
+    runUpdateCheck({ silent: true });
+  }, [isDesktopCapsule, runUpdateCheck]);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -398,6 +443,8 @@ export default function App() {
           onTestConnection={handleTestConnection}
           onManualSync={() => runPlatformSync({ manual: true })}
           manualSyncState={manualSyncState}
+          updateCheckState={updateCheckState}
+          onCheckUpdate={() => runUpdateCheck()}
           connectionState={connectionState}
         />
       </main>
@@ -456,8 +503,33 @@ export default function App() {
             onTestConnection={handleTestConnection}
             onManualSync={() => runPlatformSync({ manual: true })}
             manualSyncState={manualSyncState}
+            updateCheckState={updateCheckState}
+            onCheckUpdate={() => runUpdateCheck()}
             connectionState={connectionState}
           />
+        </div>
+      )}
+      {!isDesktopCapsule && updateCheckState.isNewer && !updateReminderDismissed && (
+        <div className="update-reminder-backdrop" role="presentation" data-no-drag="true">
+          <section className="update-reminder" role="dialog" aria-modal="true" aria-label="发现新版本">
+            <h2>发现新版本</h2>
+            <p>
+              当前版本 {updateCheckState.currentVersion}，最新版本 {updateCheckState.latestTagName}。
+            </p>
+            <div className="settings-actions">
+              <a
+                className="primary-action update-link-button"
+                href={updateCheckState.releaseUrl || GITHUB_RELEASES_URL}
+                target="_blank"
+                rel="noreferrer"
+              >
+                打开发布页
+              </a>
+              <button className="secondary-action" type="button" onClick={() => setUpdateReminderDismissed(true)}>
+                本次运行不再提醒
+              </button>
+            </div>
+          </section>
         </div>
       )}
     </main>

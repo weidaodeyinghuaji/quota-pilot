@@ -69,3 +69,13 @@ export interface NewApiManagedProvider {
   newApiUser: string;
   pricingProfile: PricingProfile;
 }
+
+export interface UpdateCheckState {
+  status: 'idle' | 'loading' | 'success' | 'error';
+  message: string;
+  currentVersion: string;
+  latestTagName?: string;
+  releaseUrl?: string;
+  isNewer?: boolean;
+  checkedAt?: string;
+}

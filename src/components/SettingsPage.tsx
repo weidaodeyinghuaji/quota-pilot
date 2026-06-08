@@ -1,9 +1,10 @@
 import React from 'react';
 import PricingEditor from './PricingEditor';
 import { validateBaseUrl } from '../lib/validation.mjs';
-import type { AppSettings, NewApiManagedProvider } from '../types/settings';
+import { GITHUB_RELEASES_URL, GITHUB_REPOSITORY_URL } from '../lib/updateChecker.mjs';
+import type { AppSettings, NewApiManagedProvider, UpdateCheckState } from '../types/settings';
 
-type SettingsTab = 'api' | 'sync';
+type SettingsTab = 'api' | 'sync' | 'about';
 
 interface Props {
   settings: AppSettings;
@@ -20,6 +21,8 @@ interface Props {
     status: string;
     message: string;
   };
+  updateCheckState: UpdateCheckState;
+  onCheckUpdate: () => void;
   connectionState: {
     status: string;
     message: string;
@@ -39,6 +42,8 @@ export default function SettingsPage({
   onTestConnection,
   onManualSync,
   manualSyncState,
+  updateCheckState,
+  onCheckUpdate,
   connectionState
 }: Props) {
   const { newApi } = settings;
@@ -68,12 +73,15 @@ export default function SettingsPage({
           <h2>设置</h2>
           <p>管理供应商、同步和显示方式</p>
         </div>
-        <nav className="settings-tabs settings-tabs-two" aria-label="设置分类">
+        <nav className="settings-tabs" aria-label="设置分类">
           <TabButton active={activeTab === 'api'} onClick={() => setActiveTab('api')}>
             供应商
           </TabButton>
           <TabButton active={activeTab === 'sync'} onClick={() => setActiveTab('sync')}>
             同步
+          </TabButton>
+          <TabButton active={activeTab === 'about'} onClick={() => setActiveTab('about')}>
+            关于/更新
           </TabButton>
         </nav>
       </header>
@@ -236,9 +244,70 @@ export default function SettingsPage({
             </div>
           </section>
         )}
+
+        {activeTab === 'about' && (
+          <AboutUpdateSection updateCheckState={updateCheckState} onCheckUpdate={onCheckUpdate} />
+        )}
       </div>
     </section>
   );
+}
+
+function AboutUpdateSection({
+  updateCheckState,
+  onCheckUpdate
+}: {
+  updateCheckState: UpdateCheckState;
+  onCheckUpdate: () => void;
+}) {
+  return (
+    <section className="settings-section">
+      <h2>关于/更新</h2>
+      <dl>
+        <dt>当前版本</dt>
+        <dd>{updateCheckState.currentVersion}</dd>
+        <dt>GitHub 仓库</dt>
+        <dd>
+          <a href={GITHUB_REPOSITORY_URL} target="_blank" rel="noreferrer">
+            {GITHUB_REPOSITORY_URL}
+          </a>
+        </dd>
+        <dt>Releases</dt>
+        <dd>
+          <a href={GITHUB_RELEASES_URL} target="_blank" rel="noreferrer">
+            {GITHUB_RELEASES_URL}
+          </a>
+        </dd>
+        <dt>更新状态</dt>
+        <dd>{formatUpdateStatus(updateCheckState)}</dd>
+      </dl>
+      <div className="settings-actions">
+        <button
+          className="secondary-action"
+          type="button"
+          disabled={updateCheckState.status === 'loading'}
+          onClick={onCheckUpdate}
+        >
+          {updateCheckState.status === 'loading' ? '检查中...' : '检查更新'}
+        </button>
+        {updateCheckState.message && (
+          <span className={`connection-message connection-${updateCheckState.status}`}>
+            {updateCheckState.message}
+          </span>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function formatUpdateStatus(state: UpdateCheckState) {
+  if (state.status === 'loading') return '正在检查 GitHub Releases...';
+  if (state.status === 'error') return state.message || '检查失败';
+  if (state.latestTagName) {
+    const prefix = state.isNewer ? '发现新版本' : '已是最新版本';
+    return `${prefix}：${state.latestTagName}`;
+  }
+  return state.message || '尚未检查';
 }
 
 function ProviderEditor({

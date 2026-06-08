@@ -1,8 +1,6 @@
 # Release Guide
 
-## Before Release
-
-Run:
+## 发布前检查
 
 ```powershell
 npm run clean:generated
@@ -12,44 +10,56 @@ npm test
 npm run build
 ```
 
-Do not commit generated output:
+不要提交生成产物：
 
 - `dist/`
+- `dist-electron/`
 - `build/`
 - `release/`
 - `release-electron/`
 - `data/`
-- `local-server.exe`
 
-## Version
+## 版本号
 
-Update:
+发布前更新：
 
 - `package.json`
 - `package-lock.json`
 - `CHANGELOG.md`
 
-## Tag Release
+## 创建 Release
+
+推送 `v*` tag：
 
 ```powershell
 git tag v0.1.0
 git push origin v0.1.0
 ```
 
-GitHub Actions will create a release with:
+GitHub Actions 会自动创建 Release，并上传：
 
 ```text
-CodexQuotaGlance-win32-x64.zip
+CodexQuotaGlance-<version>-win-x64.exe
+CodexQuotaGlance-<version>-win-x64-portable.exe
+CodexQuotaGlance-<version>-win-x64.zip
 ```
 
-## Manual Local Package
+## 本地打包
 
 ```powershell
-npm run package-electron
+npm run dist:win
 ```
 
-The zip output is:
+输出目录：
 
 ```text
-release-electron\CodexQuotaGlance-win32-x64.zip
+dist-electron\
 ```
+
+产物包括：
+
+- NSIS 安装包：`CodexQuotaGlance-<version>-win-x64.exe`
+- 单文件便携版：`CodexQuotaGlance-<version>-win-x64-portable.exe`
+- 绿色 zip：`CodexQuotaGlance-<version>-win-x64.zip`
+
+当前主发布链路是 Electron + Node + electron-builder，不需要 Python sidecar 或 PowerShell 打包脚本。

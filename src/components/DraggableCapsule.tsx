@@ -117,7 +117,6 @@ export default function DraggableCapsule({ position, onPositionChange, onTap, to
         const detailNode = root?.querySelector('.capsule-popover') as HTMLElement | null;
         if (detailNode && !hadPopoverRef.current) {
           hadPopoverRef.current = true;
-          setDesktopLayoutReady(false);
         }
         if (!detailNode && hadPopoverRef.current) {
           hadPopoverRef.current = false;

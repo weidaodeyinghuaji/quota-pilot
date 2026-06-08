@@ -1,6 +1,6 @@
 # Security Policy
 
-## Reporting
+## 报告安全问题
 
 请不要在公开 issue、截图或评论中粘贴：
 
@@ -21,7 +21,7 @@ sk-...abcd
 Bearer ...abcd
 ```
 
-## Local Data
+## 本地数据
 
 运行数据默认存储在：
 
@@ -35,7 +35,7 @@ Bearer ...abcd
 - `request-debug.log`
 - 任何本地导出的日志或截图
 
-## Repository Safeguards
+## 仓库保护
 
 提交前运行：
 

@@ -7,6 +7,7 @@ const packager = readFileSync(new URL('../scripts/package-desktop.ps1', import.m
 const electronMain = readFileSync(new URL('../electron/main.cjs', import.meta.url), 'utf8');
 const electronPreload = readFileSync(new URL('../electron/preload.cjs', import.meta.url), 'utf8');
 const electronPackager = readFileSync(new URL('../scripts/package-electron.ps1', import.meta.url), 'utf8');
+const electronRuntime = readFileSync(new URL('../scripts/prepare-electron-runtime.mjs', import.meta.url), 'utf8');
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const localServer = readFileSync(new URL('../local-server.py', import.meta.url), 'utf8');
 const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
@@ -68,8 +69,8 @@ assert.match(electronMain, /127\.0\.0\.1/);
 assert.match(electronMain, /before-quit/);
 assert.match(electronPackager, /PyInstaller/);
 assert.match(electronPackager, /local-server\.exe/);
-assert.match(electronPackager, /electron-packager/);
-assert.match(electronPackager, /--icon=electron\\icon\.ico/);
+assert.match(electronRuntime, /@electron\/get/);
+assert.match(electronPackager, /electron-runtime/);
 assert.match(electronPackager, /release-electron/);
 assert.match(electronPackager, /Codex Quota Glance\.exe/);
 assert.match(electronPackager, /Copy-Item -LiteralPath \$backendExe/);

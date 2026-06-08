@@ -71,63 +71,41 @@ try {
     Remove-Item -LiteralPath $releaseRoot -Recurse -Force
   }
 
-  $packagerArgs = @(
-    'node_modules\@electron\packager\bin\electron-packager.mjs',
-    '.',
-    'Codex Quota Glance',
-    '--platform=win32',
-    '--arch=x64',
-    '--out=release-electron',
-    '--overwrite',
-    '--icon=electron\icon.ico',
-    '--ignore=^/node_modules($|/)',
-    '--ignore=^/release($|/)',
-    '--ignore=^/release-electron($|/)',
-    '--ignore=^/data($|/)',
-    '--ignore=^/src($|/)',
-    '--ignore=^/tests($|/)',
-    '--ignore=^/build($|/)',
-    '--ignore=^/src-tauri($|/)',
-    '--ignore=^/docs($|/)',
-    '--ignore=^/scripts($|/)',
-    '--ignore=^/local-server\.py$',
-    '--ignore=^/local-server\.mjs$',
-    '--ignore=^/electron/icon-[0-9]+\.png$',
-    '--ignore=^/.*\.ps1$',
-    '--ignore=^/.*\.log$',
-    '--ignore=^/package-lock\.json$',
-    '--ignore=^/.codex-signal-glance-ref($|/)'
-  )
-
-  Write-Host "Running Electron Packager with Node: $node"
-  Write-Host "Packager args: $($packagerArgs -join ' ')"
-  & $node @packagerArgs | Out-Host
-
+  $electronRuntime = (& $node scripts\prepare-electron-runtime.mjs | Select-Object -Last 1).Trim()
   if ($LASTEXITCODE -ne 0) {
-    throw "Electron packaging failed with exit code $LASTEXITCODE"
+    throw "Failed to prepare Electron runtime with exit code $LASTEXITCODE"
   }
+  if (-not (Test-Path -LiteralPath (Join-Path $electronRuntime 'electron.exe'))) {
+    throw "Electron runtime not found: $electronRuntime"
+  }
+
+  $appPath = Join-Path $releaseRoot 'Codex Quota Glance-win32-x64'
+  $appResources = Join-Path $appPath 'resources'
+  $packagedAppRoot = Join-Path $appResources 'app'
+  Write-Host "Copying Electron runtime from $electronRuntime"
+  Copy-Item -LiteralPath $electronRuntime -Destination $appPath -Recurse -Force
+
+  $electronExe = Join-Path $appPath 'electron.exe'
+  $exe = Join-Path $appPath 'Codex Quota Glance.exe'
+  if (Test-Path -LiteralPath $exe) {
+    Remove-Item -LiteralPath $exe -Force
+  }
+  Rename-Item -LiteralPath $electronExe -NewName 'Codex Quota Glance.exe'
 
   if (-not (Test-Path -LiteralPath $releaseRoot)) {
     $rootEntries = (Get-ChildItem -LiteralPath $root | Select-Object -ExpandProperty Name) -join ', '
     throw "Electron packaging did not create $releaseRoot. Repository root contains: $rootEntries"
   }
 
-  $appDirectory = Get-ChildItem -LiteralPath $releaseRoot -Directory |
-    Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'Codex Quota Glance.exe') } |
-    Select-Object -First 1
-  if (-not $appDirectory) {
-    $availableDirectories = (Get-ChildItem -LiteralPath $releaseRoot -Directory | Select-Object -ExpandProperty Name) -join ', '
-    throw "Packaged app directory not found under $releaseRoot. Available directories: $availableDirectories"
-  }
-
-  $exe = Join-Path $appDirectory.FullName 'Codex Quota Glance.exe'
   if (-not (Test-Path -LiteralPath $exe)) {
     throw "Packaged exe not found: $exe"
   }
 
-  $packagedBackend = Join-Path $appDirectory.FullName 'resources\app\local-server.exe'
-  $packagedAppRoot = Split-Path -Parent $packagedBackend
+  $packagedBackend = Join-Path $appPath 'resources\app\local-server.exe'
   New-Item -ItemType Directory -Force -Path $packagedAppRoot | Out-Null
+  Copy-Item -LiteralPath (Join-Path $root 'dist') -Destination $packagedAppRoot -Recurse -Force
+  Copy-Item -LiteralPath (Join-Path $root 'electron') -Destination $packagedAppRoot -Recurse -Force
+  Copy-Item -LiteralPath (Join-Path $root 'package.json') -Destination $packagedAppRoot -Force
   Copy-Item -LiteralPath $backendExe -Destination $packagedBackend -Force
   if (-not (Test-Path -LiteralPath $packagedBackend)) {
     throw "Packaged backend exe not found: $packagedBackend"
@@ -138,7 +116,7 @@ try {
     Remove-Item -LiteralPath $zip -Force
   }
   Compress-Archive `
-    -LiteralPath $appDirectory.FullName `
+    -LiteralPath $appPath `
     -DestinationPath $zip `
     -Force
 

@@ -66,36 +66,52 @@ try {
     throw "Backend exe not found: $backendExe"
   }
 
-  & $node node_modules\@electron\packager\bin\electron-packager.mjs . "Codex Quota Glance" `
-    --platform=win32 `
-    --arch=x64 `
-    --out=release-electron `
-    --overwrite `
-    --asar=false `
-    --icon=electron\icon.ico `
-    --ignore="^/node_modules($|/)" `
-    --ignore="^/release($|/)" `
-    --ignore="^/release-electron($|/)" `
-    --ignore="^/data($|/)" `
-    --ignore="^/src($|/)" `
-    --ignore="^/tests($|/)" `
-    --ignore="^/build($|/)" `
-    --ignore="^/src-tauri($|/)" `
-    --ignore="^/docs($|/)" `
-    --ignore="^/scripts($|/)" `
-    --ignore="^/local-server\.py$" `
-    --ignore="^/local-server\.mjs$" `
-    --ignore="^/electron/icon-[0-9]+\.png$" `
-    --ignore="^/.*\.ps1$" `
-    --ignore="^/.*\.log$" `
-    --ignore="^/package-lock\.json$" `
-    --ignore="^/.codex-signal-glance-ref($|/)" | Out-Host
+  $releaseRoot = Join-Path $root 'release-electron'
+  if (Test-Path -LiteralPath $releaseRoot) {
+    Remove-Item -LiteralPath $releaseRoot -Recurse -Force
+  }
+
+  $packagerArgs = @(
+    'node_modules\@electron\packager\bin\electron-packager.mjs',
+    '.',
+    'Codex Quota Glance',
+    '--platform=win32',
+    '--arch=x64',
+    '--out=release-electron',
+    '--overwrite',
+    '--icon=electron\icon.ico',
+    '--ignore=^/node_modules($|/)',
+    '--ignore=^/release($|/)',
+    '--ignore=^/release-electron($|/)',
+    '--ignore=^/data($|/)',
+    '--ignore=^/src($|/)',
+    '--ignore=^/tests($|/)',
+    '--ignore=^/build($|/)',
+    '--ignore=^/src-tauri($|/)',
+    '--ignore=^/docs($|/)',
+    '--ignore=^/scripts($|/)',
+    '--ignore=^/local-server\.py$',
+    '--ignore=^/local-server\.mjs$',
+    '--ignore=^/electron/icon-[0-9]+\.png$',
+    '--ignore=^/.*\.ps1$',
+    '--ignore=^/.*\.log$',
+    '--ignore=^/package-lock\.json$',
+    '--ignore=^/.codex-signal-glance-ref($|/)'
+  )
+
+  Write-Host "Running Electron Packager with Node: $node"
+  Write-Host "Packager args: $($packagerArgs -join ' ')"
+  & $node @packagerArgs | Out-Host
 
   if ($LASTEXITCODE -ne 0) {
     throw "Electron packaging failed with exit code $LASTEXITCODE"
   }
 
-  $releaseRoot = Join-Path $root 'release-electron'
+  if (-not (Test-Path -LiteralPath $releaseRoot)) {
+    $rootEntries = (Get-ChildItem -LiteralPath $root | Select-Object -ExpandProperty Name) -join ', '
+    throw "Electron packaging did not create $releaseRoot. Repository root contains: $rootEntries"
+  }
+
   $appDirectory = Get-ChildItem -LiteralPath $releaseRoot -Directory |
     Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'Codex Quota Glance.exe') } |
     Select-Object -First 1
@@ -110,6 +126,9 @@ try {
   }
 
   $packagedBackend = Join-Path $appDirectory.FullName 'resources\app\local-server.exe'
+  $packagedAppRoot = Split-Path -Parent $packagedBackend
+  New-Item -ItemType Directory -Force -Path $packagedAppRoot | Out-Null
+  Copy-Item -LiteralPath $backendExe -Destination $packagedBackend -Force
   if (-not (Test-Path -LiteralPath $packagedBackend)) {
     throw "Packaged backend exe not found: $packagedBackend"
   }

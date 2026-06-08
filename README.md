@@ -18,12 +18,13 @@ Codex Quota Glance 是一个 Windows 桌面悬浮胶囊工具，用来查看 Cod
 
 ## 截图
 
-截图可以放在 `docs/images/`，例如：
+### 悬浮胶囊
 
-```text
-docs/images/capsule.png
-docs/images/settings.png
-```
+![悬浮胶囊](docs/images/capsule.png)
+
+### 供应商设置
+
+![供应商设置](docs/images/settings.png)
 
 ## 数据来源
 
@@ -264,7 +265,7 @@ npm run clean:generated
 - 使用 `electron-builder` 生成 NSIS 安装包。
 - 使用 GitHub Releases 作为更新源。
 - 在设置中加入更新检测：
-  - 读取 `https://api.github.com/repos/<owner>/codex-quota-glance/releases/latest`
+  - 读取 `https://api.github.com/repos/akitten-cn/codex-quota-glance/releases/latest`
   - 比较当前 `package.json` 版本
   - 提示下载新版本
 

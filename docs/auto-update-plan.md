@@ -11,7 +11,7 @@
 请求：
 
 ```http
-GET https://api.github.com/repos/<owner>/codex-quota-glance/releases/latest
+GET https://api.github.com/repos/akitten-cn/codex-quota-glance/releases/latest
 ```
 
 比较：

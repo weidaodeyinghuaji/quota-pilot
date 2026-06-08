@@ -4,6 +4,14 @@
   "description": "Windows floating quota and token usage monitor for Codex and New API providers.",
   "private": false,
   "license": "MIT",
+  "homepage": "https://github.com/akitten-cn/codex-quota-glance#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/akitten-cn/codex-quota-glance.git"
+  },
+  "bugs": {
+    "url": "https://github.com/akitten-cn/codex-quota-glance/issues"
+  },
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {

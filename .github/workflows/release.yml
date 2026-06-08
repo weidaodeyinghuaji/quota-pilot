@@ -33,7 +33,7 @@ jobs:
         run: npm test
 
       - name: Build Electron release
-        run: npm run dist:win
+        run: npm run dist:win -- --publish never
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

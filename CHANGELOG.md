@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2
+
+- Fixed GitHub Actions release packaging by disabling electron-builder's implicit publish step.
+- Release assets are uploaded by `softprops/action-gh-release` using the workflow `GITHUB_TOKEN`.
+
 ## 0.1.1
 
 - Migrated the runtime backend from Python sidecar to Electron/Node.

@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const output = fileURLToPath(new URL('../release-notes.test.md', import.meta.url));
+const output = join(tmpdir(), `codex-quota-glance-release-notes-${Date.now()}.md`);
 const script = fileURLToPath(new URL('../scripts/extract-release-notes.mjs', import.meta.url));
 const cwd = fileURLToPath(new URL('..', import.meta.url));
 if (existsSync(output)) rmSync(output);

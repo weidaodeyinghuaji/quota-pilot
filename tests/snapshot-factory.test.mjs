@@ -95,6 +95,54 @@ assert.equal(round(officialCodex.usage.cacheHitRate), 30.329);
 assert.equal(officialCodex.usage.estimatedCost, undefined);
 assert.equal(officialCodex.usage.costSource, undefined);
 
+const officialQuotaPrefersRealtimeStatus = buildSnapshots(baseSettings, new Date('2026-06-03T09:00:01.000Z'), {
+  codexStatus: {
+    accountType: 'official_login',
+    quotaSource: 'codex-rpc',
+    quota: {
+      window5h: {
+        usedPercent: 23,
+        remainingPercent: 77,
+        resetAt: '2026-06-06T11:21:00+00:00',
+        resetInSeconds: 900
+      },
+      weekly: {
+        usedPercent: 58,
+        remainingPercent: 42,
+        resetAt: '2026-06-11T01:34:00+00:00',
+        resetInSeconds: 350000
+      }
+    }
+  },
+  codexTokenEvent: {
+    id: 'codex-token-stale-quota',
+    inputTokens: 100,
+    outputTokens: 20,
+    timestamp: '2026-06-06T01:41:53.968Z',
+    quota: {
+      window5h: {
+        usedPercent: 12,
+        remainingPercent: 88,
+        resetAt: '2026-06-06T10:21:00+00:00',
+        resetInSeconds: 1200
+      },
+      weekly: {
+        usedPercent: 56,
+        remainingPercent: 44,
+        resetAt: '2026-06-11T01:34:00+00:00',
+        resetInSeconds: 360000
+      }
+    }
+  }
+}).find((snapshot) => snapshot.providerType === 'codex');
+
+assert.equal(officialQuotaPrefersRealtimeStatus.quota.source, 'codex-rpc');
+assert.equal(officialQuotaPrefersRealtimeStatus.quota.window5h.remainingPercent, 77);
+assert.equal(officialQuotaPrefersRealtimeStatus.quota.window5h.usedPercent, 23);
+assert.equal(officialQuotaPrefersRealtimeStatus.quota.window5h.resetAt, '2026-06-06T11:21:00+00:00');
+assert.equal(officialQuotaPrefersRealtimeStatus.quota.weekly.remainingPercent, 42);
+assert.equal(officialQuotaPrefersRealtimeStatus.quota.weekly.usedPercent, 58);
+
 const providerSnapshot = {
   providerId: 'new-api-main',
   providerName: '接口数据',

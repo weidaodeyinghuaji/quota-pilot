@@ -19,7 +19,7 @@ const LOG_WINDOW_CAP = 1000;
 const ACCOUNT_CACHE_TTL_SECONDS = 5 * 60;
 const TOPUP_CACHE_TTL_SECONDS = 10 * 60;
 const CODEX_SESSION_DISCOVERY_TTL_SECONDS = 5;
-const CODEX_RATE_LIMIT_CACHE_TTL_SECONDS = 30;
+const CODEX_RATE_LIMIT_CACHE_TTL_SECONDS = 5;
 const GITHUB_LATEST_RELEASE_URL = 'https://github.com/akitten-cn/codex-quota-glance/releases/latest';
 
 let server = null;

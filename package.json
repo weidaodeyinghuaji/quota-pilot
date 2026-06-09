@@ -1,6 +1,6 @@
 {
   "name": "codex-quota-glance",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Windows floating quota and token usage monitor for Codex and New API providers.",
   "private": false,
   "license": "MIT",
@@ -70,6 +70,7 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "perMachine": false,
+      "include": "installer/installer.nsh",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Codex Quota Glance"

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.5
+
+- Fixed official-login quota display so the floating capsule prefers the live Codex rate-limit response instead of stale quota values embedded in local token logs.
+- Reduced the official-login quota cache from 30 seconds to 5 seconds so the 5h and 7d remaining values catch up faster after Codex refreshes.
+- Added regression coverage for stale local quota data being overridden by live official quota data.
+- Moved the NSIS installer include script out of the generated build directory so GitHub Actions release packaging can find it reliably.
+- Kept the release-notes extraction test from leaving temporary files in the repository root.
+
 ## 0.1.4
 
 - Reworked the desktop detail card into a detached transparent window that stays prewarmed instead of repeatedly hiding and showing, reducing flicker during frequent capsule clicks.

@@ -24,6 +24,8 @@ export function buildSnapshots(settings, now = new Date(), options = {}) {
   const updatedAt = now.toISOString();
   const codexStatus = options.codexStatus ?? {};
   const codexTokenEvent = options.codexTokenEvent;
+  const codexQuotaPrimary = codexStatus.quota;
+  const codexQuotaFallback = codexTokenEvent?.quota;
   const newApiSnapshot = options.newApiSnapshot
     ? mergeNewApiSnapshot(options.newApiSnapshot, {
         settings,
@@ -64,8 +66,8 @@ export function buildSnapshots(settings, now = new Date(), options = {}) {
         accountType: codexStatus.accountType === 'official_login' ? 'official_login' : 'api'
       },
       quota: {
-        window5h: buildCodexQuotaWindow(codexTokenEvent?.quota?.window5h, codexStatus.quota?.window5h),
-        weekly: buildCodexQuotaWindow(codexTokenEvent?.quota?.weekly, codexStatus.quota?.weekly),
+        window5h: buildCodexQuotaWindow(codexQuotaPrimary?.window5h, codexQuotaFallback?.window5h),
+        weekly: buildCodexQuotaWindow(codexQuotaPrimary?.weekly, codexQuotaFallback?.weekly),
         source: codexStatus.quotaSource,
         message: codexStatus.quotaMessage
       },

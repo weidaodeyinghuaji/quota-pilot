@@ -223,6 +223,10 @@ body:has(.settings-window-shell) {
   max-width: none;
 }
 
+.draggable-capsule[data-desktop-shell="true"][data-capsule-hidden="true"] .floating-capsule {
+  opacity: 0;
+}
+
 .draggable-capsule[data-popover-placement="top"] .capsule-popover {
   top: auto;
   bottom: calc(100% + 8px);

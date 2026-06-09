@@ -4,6 +4,10 @@ import { readFileSync } from 'node:fs';
 const source = readFileSync(new URL('../src/components/DraggableCapsule.tsx', import.meta.url), 'utf8');
 
 assert.match(source, /const DRAG_THRESHOLD_PX = 12;/);
+assert.match(source, /flushSync/);
+assert.match(source, /layoutApplied\(sequence\)/);
+assert.match(source, /desktopCapsuleHidden/);
+assert.match(source, /data-capsule-hidden/);
 assert.match(source, /onTap\?: \(\) => void;/);
 assert.match(source, /data-popover-placement=\{popoverPlacement\}/);
 assert.match(source, /bottomSpace >= expectedPopoverHeight \|\| bottomSpace >= topSpace \? 'bottom' : 'top'/);

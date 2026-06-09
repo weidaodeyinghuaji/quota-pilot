@@ -20,6 +20,7 @@ const ACCOUNT_CACHE_TTL_SECONDS = 5 * 60;
 const TOPUP_CACHE_TTL_SECONDS = 10 * 60;
 const CODEX_SESSION_DISCOVERY_TTL_SECONDS = 5;
 const CODEX_RATE_LIMIT_CACHE_TTL_SECONDS = 30;
+const GITHUB_LATEST_RELEASE_URL = 'https://github.com/akitten-cn/codex-quota-glance/releases/latest';
 
 let server = null;
 let database = null;
@@ -67,6 +68,14 @@ async function handleRequest(request, response) {
     await proxyNewApi(request, response);
     return;
   }
+  if (request.method === 'GET' && requestUrl.pathname === '/local-api/health') {
+    sendJson(response, 200, {
+      ok: true,
+      app: 'codex-quota-glance',
+      backend: 'electron-local-backend'
+    });
+    return;
+  }
   if (request.method === 'GET' && requestUrl.pathname === '/local-api/newapi/logs/summary') {
     sendJson(response, 200, getLogSummary(readSummaryContext(request, requestUrl)));
     return;
@@ -91,7 +100,36 @@ async function handleRequest(request, response) {
     sendJson(response, 200, await getCodexStatus());
     return;
   }
+  if (request.method === 'GET' && requestUrl.pathname === '/local-api/update/latest') {
+    sendJson(response, 200, await getLatestRelease());
+    return;
+  }
   await serveStatic(requestUrl, response);
+}
+
+async function getLatestRelease() {
+  const response = await fetch(GITHUB_LATEST_RELEASE_URL, {
+    method: 'GET',
+    redirect: 'manual',
+    headers: {
+      Accept: 'text/html',
+      'User-Agent': 'CodexQuotaGlance/0.1'
+    }
+  });
+  const location = response.headers.get('location');
+  const releaseUrl = location ? new URL(location, GITHUB_LATEST_RELEASE_URL).toString() : response.url;
+  const tagName = releaseUrl.match(/\/releases\/tag\/([^/?#]+)/)?.[1];
+  if (!tagName) {
+    return {
+      ok: false,
+      message: `GitHub Releases 检查失败：HTTP ${response.status || 'unknown'}`
+    };
+  }
+  return {
+    ok: true,
+    tag_name: decodeURIComponent(tagName),
+    html_url: releaseUrl
+  };
 }
 
 function resolvePaths(options) {

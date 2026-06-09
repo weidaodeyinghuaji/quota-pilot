@@ -1,4 +1,5 @@
 import React from 'react';
+import { flushSync } from 'react-dom';
 
 const DRAG_THRESHOLD_PX = 12;
 
@@ -13,6 +14,7 @@ interface DesktopWindowLayout {
   offsetY: number;
   detailOffset: number;
   popoverShiftX: number;
+  sequence?: number;
 }
 
 interface Props {
@@ -38,6 +40,7 @@ export default function DraggableCapsule({ position, onPositionChange, onTap, to
     popoverShiftX: 0
   });
   const [desktopLayoutReady, setDesktopLayoutReady] = React.useState(false);
+  const [desktopCapsuleHidden, setDesktopCapsuleHidden] = React.useState(false);
   const capsuleRef = React.useRef<HTMLDivElement | null>(null);
   const hadPopoverRef = React.useRef(false);
   const movedRef = React.useRef(false);
@@ -77,17 +80,27 @@ export default function DraggableCapsule({ position, onPositionChange, onTap, to
     return window.codexQuotaDesktop.onWindowLayout((layout) => {
       const placement = layout?.placement === 'top' ? 'top' : 'bottom';
       const ready = layout?.ready !== false;
-      setPopoverPlacement(placement);
-      if (ready) {
-        setDesktopLayout({
-          placement,
-          offsetX: finite(layout?.offsetX, 0),
-          offsetY: finite(layout?.offsetY, 0),
-          detailOffset: finite(layout?.detailOffset, 0),
-          popoverShiftX: finite(layout?.popoverShiftX, 0)
+      const sequence = finite(layout?.sequence, 0);
+      if (ready || layout?.hideCapsule === true) {
+        flushSync(() => {
+          setPopoverPlacement(placement);
+          setDesktopLayout({
+            placement,
+            offsetX: finite(layout?.offsetX, 0),
+            offsetY: finite(layout?.offsetY, 0),
+            detailOffset: finite(layout?.detailOffset, 0),
+            popoverShiftX: finite(layout?.popoverShiftX, 0),
+            sequence
+          });
+          setDesktopLayoutReady(ready);
+          setDesktopCapsuleHidden(layout?.hideCapsule === true);
         });
+        window.codexQuotaDesktop?.layoutApplied(sequence);
+        return;
       }
-      setDesktopLayoutReady(ready);
+      setPopoverPlacement(placement);
+      setDesktopLayoutReady(false);
+      setDesktopCapsuleHidden(false);
     });
   }, [isDesktopShell]);
 
@@ -284,6 +297,7 @@ export default function DraggableCapsule({ position, onPositionChange, onTap, to
       data-popover-placement={popoverPlacement}
       data-layout-ready={desktopLayoutReady ? 'true' : 'false'}
       data-desktop-shell={isDesktopShell ? 'true' : 'false'}
+      data-capsule-hidden={desktopCapsuleHidden ? 'true' : 'false'}
       data-toast-visible={toastVisible ? 'true' : 'false'}
       style={desktopStyle ?? { left: `${dragPosition.x}px`, top: `${dragPosition.y}px` }}
       onPointerDown={handlePointerDown}

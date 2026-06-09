@@ -3,11 +3,13 @@ import {
   APP_VERSION,
   checkLatestRelease,
   compareVersions,
+  LOCAL_LATEST_RELEASE_API_URL,
   normalizeVersionTag,
   parseVersion
 } from '../src/lib/updateChecker.mjs';
 
-assert.equal(APP_VERSION, '0.1.0');
+assert.equal(APP_VERSION, '0.1.3');
+assert.equal(LOCAL_LATEST_RELEASE_API_URL, '/local-api/update/latest');
 assert.equal(normalizeVersionTag('v0.2.0'), '0.2.0');
 assert.equal(normalizeVersionTag(' V1.2.3 '), '1.2.3');
 assert.deepEqual(parseVersion('v1.2.3'), [1, 2, 3]);
@@ -34,8 +36,8 @@ assert.deepEqual(compareVersions('0.1.0', 'latest'), {
 const result = await checkLatestRelease({
   currentVersion: '0.1.0',
   fetchImpl: async (url, options) => {
-    assert.equal(url, 'https://api.github.com/repos/akitten-cn/codex-quota-glance/releases/latest');
-    assert.equal(options.headers.Accept, 'application/vnd.github+json');
+    assert.equal(url, '/local-api/update/latest');
+    assert.equal(options.headers.Accept, 'application/json');
     return {
       ok: true,
       json: async () => ({

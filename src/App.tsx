@@ -307,7 +307,7 @@ export default function App() {
         .catch((error) => {
           if (!active) return;
           setNewApiSnapshot(lastNewApiSnapshotRef.current);
-          setNewApiError(error instanceof Error ? error.message : '鏈湴鏁版嵁璇诲彇澶辫触');
+          setNewApiError(error instanceof Error ? error.message : '本地数据读取失败');
         });
     };
 
@@ -430,24 +430,31 @@ export default function App() {
 
   if (isSettingsWindow) {
     return (
-      <main className="settings-window-shell">
-        <SettingsPage
-          settings={settings}
-          onNewApiChange={(key, value) => setSettings((current) => updateNewApiSettings(current, key, value))}
-          onPricingChange={(key, value) => setSettings((current) => updatePricingProfile(current, key, value))}
-          onProviderSave={(provider) => setSettings((current) => upsertNewApiProvider(current, provider))}
-          onProviderSelect={(providerId) => setSettings((current) => selectNewApiProvider(current, providerId))}
-          onProviderDelete={(providerId) => setSettings((current) => deleteNewApiProvider(current, providerId))}
-          onProviderDuplicate={(providerId) => setSettings((current) => duplicateNewApiProvider(current, providerId))}
-          createProviderDraft={() => createNewApiProviderDraft(settings)}
-          onTestConnection={handleTestConnection}
-          onManualSync={() => runPlatformSync({ manual: true })}
-          manualSyncState={manualSyncState}
+      <>
+        <main className="settings-window-shell">
+          <SettingsPage
+            settings={settings}
+            onNewApiChange={(key, value) => setSettings((current) => updateNewApiSettings(current, key, value))}
+            onPricingChange={(key, value) => setSettings((current) => updatePricingProfile(current, key, value))}
+            onProviderSave={(provider) => setSettings((current) => upsertNewApiProvider(current, provider))}
+            onProviderSelect={(providerId) => setSettings((current) => selectNewApiProvider(current, providerId))}
+            onProviderDelete={(providerId) => setSettings((current) => deleteNewApiProvider(current, providerId))}
+            onProviderDuplicate={(providerId) => setSettings((current) => duplicateNewApiProvider(current, providerId))}
+            createProviderDraft={() => createNewApiProviderDraft(settings)}
+            onTestConnection={handleTestConnection}
+            onManualSync={() => runPlatformSync({ manual: true })}
+            manualSyncState={manualSyncState}
+            updateCheckState={updateCheckState}
+            onCheckUpdate={() => runUpdateCheck()}
+            connectionState={connectionState}
+          />
+        </main>
+        <UpdateReminder
           updateCheckState={updateCheckState}
-          onCheckUpdate={() => runUpdateCheck()}
-          connectionState={connectionState}
+          dismissed={updateReminderDismissed}
+          onDismiss={() => setUpdateReminderDismissed(true)}
         />
-      </main>
+      </>
     );
   }
 
@@ -486,7 +493,7 @@ export default function App() {
           type="button"
           onClick={() => setSettingsOpen((open) => !open)}
         >
-          {settingsOpen ? '鍏抽棴璁剧疆' : '璁剧疆'}
+          {settingsOpen ? '关闭设置' : '设置'}
         </button>
       )}
       {settingsOpen && !isDesktopCapsule && (
@@ -509,30 +516,47 @@ export default function App() {
           />
         </div>
       )}
-      {!isDesktopCapsule && updateCheckState.isNewer && !updateReminderDismissed && (
-        <div className="update-reminder-backdrop" role="presentation" data-no-drag="true">
-          <section className="update-reminder" role="dialog" aria-modal="true" aria-label="发现新版本">
-            <h2>发现新版本</h2>
-            <p>
-              当前版本 {updateCheckState.currentVersion}，最新版本 {updateCheckState.latestTagName}。
-            </p>
-            <div className="settings-actions">
-              <a
-                className="primary-action update-link-button"
-                href={updateCheckState.releaseUrl || GITHUB_RELEASES_URL}
-                target="_blank"
-                rel="noreferrer"
-              >
-                打开发布页
-              </a>
-              <button className="secondary-action" type="button" onClick={() => setUpdateReminderDismissed(true)}>
-                本次运行不再提醒
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
+      <UpdateReminder
+        updateCheckState={updateCheckState}
+        dismissed={updateReminderDismissed}
+        onDismiss={() => setUpdateReminderDismissed(true)}
+      />
     </main>
+  );
+}
+
+function UpdateReminder({
+  updateCheckState,
+  dismissed,
+  onDismiss
+}: {
+  updateCheckState: UpdateCheckState;
+  dismissed: boolean;
+  onDismiss: () => void;
+}) {
+  if (!updateCheckState.isNewer || dismissed) return null;
+  return (
+    <div className="update-reminder-backdrop" role="presentation" data-no-drag="true">
+      <section className="update-reminder" role="dialog" aria-modal="true" aria-label="发现新版本">
+        <h2>发现新版本</h2>
+        <p>
+          当前版本 {updateCheckState.currentVersion}，最新版本 {updateCheckState.latestTagName}。
+        </p>
+        <div className="settings-actions">
+          <a
+            className="primary-action update-link-button"
+            href={updateCheckState.releaseUrl || GITHUB_RELEASES_URL}
+            target="_blank"
+            rel="noreferrer"
+          >
+            打开发布页
+          </a>
+          <button className="secondary-action" type="button" onClick={onDismiss}>
+            本次运行不再提醒
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 

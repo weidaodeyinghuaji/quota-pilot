@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.3
+
+- Fixed the floating capsule anchor timing when opening and closing the detail panel near the screen edge.
+- Added a two-phase desktop window layout handshake to avoid one-frame capsule jumps during top-side popover transitions.
+- Added an About/Update settings page with current version, GitHub links, manual update check, and per-run update reminder dismissal.
+- Switched update checking to the local Electron backend and GitHub Releases latest redirect, avoiding frontend GitHub API rate-limit failures.
+- Added a local backend health endpoint so packaged Electron builds do not accidentally attach to legacy temporary backends.
+- Cleaned generated artifacts more aggressively, including old `release-electron` and `local-server.exe` leftovers.
+- Fixed mojibake text in settings and local pricing UI.
+
 ## 0.1.2
 
 - Fixed GitHub Actions release packaging by disabling electron-builder's implicit publish step.

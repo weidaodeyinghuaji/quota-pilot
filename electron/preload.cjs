@@ -22,6 +22,9 @@ contextBridge.exposeInMainWorld('codexQuotaDesktop', {
   setSavedPosition(position) {
     ipcRenderer.send('desktop-saved-position', position);
   },
+  layoutApplied(sequence) {
+    ipcRenderer.send('desktop-window-layout-applied', sequence);
+  },
   onDetailState(callback) {
     if (typeof callback !== 'function') return () => {};
     const listener = (_event, open) => callback(Boolean(open));

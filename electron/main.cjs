@@ -33,18 +33,21 @@ let detailOpen = false;
 let toastOpen = false;
 let capsuleAnchor = null;
 let savedCapsulePosition = null;
+let layoutSequence = 0;
+let pendingBoundsCommit = null;
 let lastWindowLayout = {
   placement: 'bottom',
   offsetX: 0,
   offsetY: 0,
   detailOffset: 0,
   popoverShiftX: 0,
+  hideCapsule: false,
   ready: true
 };
 let lastLayout = {
   capsule: { x: 0, y: 0, width: DEFAULT_CAPSULE_SIZE.width, height: DEFAULT_CAPSULE_SIZE.height },
   toast: { height: 0 },
-  detail: { width: DEFAULT_DETAIL_SIZE.width, height: DEFAULT_DETAIL_SIZE.height }
+  detail: { width: 0, height: 0 }
 };
 
 async function createApp() {
@@ -226,6 +229,21 @@ ipcMain.on('desktop-detail-open', (event, open) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win || win !== capsuleWindow) return;
   detailOpen = Boolean(open);
+  if (detailOpen) {
+    lastLayout = {
+      ...lastLayout,
+      detail: { width: 0, height: 0 }
+    };
+    sendWindowLayout({
+      placement: lastWindowLayout.placement,
+      offsetX: lastWindowLayout.offsetX,
+      offsetY: lastWindowLayout.offsetY,
+      detailOffset: lastWindowLayout.detailOffset,
+      popoverShiftX: lastWindowLayout.popoverShiftX,
+      ready: false
+    });
+    return;
+  }
   resizeCapsuleWindow();
 });
 
@@ -241,6 +259,17 @@ ipcMain.on('desktop-layout-update', (event, layout) => {
   if (!win || win !== capsuleWindow) return;
   lastLayout = normalizeLayout(layout);
   resizeCapsuleWindow();
+});
+
+ipcMain.on('desktop-window-layout-applied', (event, sequence) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win !== capsuleWindow || !pendingBoundsCommit) return;
+  if (Number(sequence) !== pendingBoundsCommit.sequence) return;
+  const pending = pendingBoundsCommit;
+  pendingBoundsCommit = null;
+  const changed = setCapsuleWindowBounds(pending.bounds);
+  if (changed) keepFloatingWindowOnTop();
+  sendWindowLayoutSoon(pending.layout);
 });
 
 ipcMain.on('desktop-saved-position', (event, position) => {
@@ -271,6 +300,7 @@ function resizeCapsuleWindow() {
   const currentCapsuleScreen = getAnchoredCapsuleBounds(current, capsuleSize, workArea);
 
   if (!detailOpen) {
+    pendingBoundsCommit = null;
     const width = capsuleSize.width + CAPSULE_WINDOW_PAD;
     const toastSpace = RESERVED_TOAST_SPACE;
     const height = capsuleSize.height + toastSpace + CAPSULE_WINDOW_PAD;
@@ -283,8 +313,16 @@ function resizeCapsuleWindow() {
     const offsetX = clamp(currentCapsuleScreen.x - x, 0, Math.max(0, width - capsuleSize.width));
     const offsetY = clamp(currentCapsuleScreen.y - y, 0, Math.max(0, height - capsuleSize.height));
     capsuleAnchor = { x: x + offsetX, y: y + offsetY, width: capsuleSize.width, height: capsuleSize.height };
-    const changed = setCapsuleWindowBounds({ x, y, width, height });
-    sendWindowLayout({ placement: 'bottom', offsetX, offsetY, detailOffset: 0, popoverShiftX: 0 });
+    const compactLayout = { placement: 'bottom', offsetX, offsetY, detailOffset: 0, popoverShiftX: 0 };
+    const compactBounds = { x, y, width, height };
+    if (shouldCommitBoundsBeforeLayout(current, compactBounds)) {
+      const sequence = nextLayoutSequence();
+      pendingBoundsCommit = { sequence, bounds: compactBounds, layout: compactLayout };
+      sendWindowLayout({ ...compactLayout, ready: false, hideCapsule: true, sequence });
+      return;
+    }
+    const changed = setCapsuleWindowBounds(compactBounds);
+    sendWindowLayout(compactLayout);
     if (changed) keepFloatingWindowOnTop();
     return;
   }
@@ -293,6 +331,7 @@ function resizeCapsuleWindow() {
   const detailWidth = detailSize.width;
   const detailHeight = detailSize.height;
   if (detailWidth <= 0 || detailHeight <= 0) {
+    pendingBoundsCommit = null;
     sendWindowLayout({
       placement: lastWindowLayout.placement,
       offsetX: lastWindowLayout.offsetX,
@@ -301,7 +340,6 @@ function resizeCapsuleWindow() {
       popoverShiftX: lastWindowLayout.popoverShiftX,
       ready: false
     });
-    keepFloatingWindowOnTop();
     return;
   }
   const capsuleWindowWidth = capsuleSize.width + CAPSULE_WINDOW_PAD;
@@ -329,10 +367,33 @@ function resizeCapsuleWindow() {
     detailOffset: placement === 'top' ? detailHeight + WINDOW_MARGIN : 0,
     popoverShiftX: desiredDetailLeft - centeredDetailLeft
   };
+  const nextBounds = { x, y, width, height };
+  if (shouldWaitForLayoutBeforeBounds(current, nextBounds, nextLayout)) {
+    const sequence = nextLayoutSequence();
+    pendingBoundsCommit = { sequence, bounds: nextBounds, layout: nextLayout };
+    sendWindowLayout({ ...nextLayout, sequence });
+    return;
+  }
+  pendingBoundsCommit = null;
   sendWindowLayout(nextLayout);
-  const changed = setCapsuleWindowBounds({ x, y, width, height });
+  const changed = setCapsuleWindowBounds(nextBounds);
   if (changed) keepFloatingWindowOnTop();
   sendWindowLayoutSoon(nextLayout);
+}
+
+function shouldWaitForLayoutBeforeBounds(currentBounds, nextBounds, layout) {
+  if (layout.placement !== 'top') return false;
+  if (layout.offsetY <= finite(lastWindowLayout.offsetY, 0)) return false;
+  return Math.round(finite(nextBounds.y, currentBounds.y)) < Math.round(finite(currentBounds.y, nextBounds.y));
+}
+
+function shouldCommitBoundsBeforeLayout(currentBounds, nextBounds) {
+  return Math.round(finite(nextBounds.y, currentBounds.y)) > Math.round(finite(currentBounds.y, nextBounds.y));
+}
+
+function nextLayoutSequence() {
+  layoutSequence = (layoutSequence % 1000000) + 1;
+  return layoutSequence;
 }
 
 function getAnchoredCapsuleBounds(current, capsuleSize, workArea) {
@@ -372,7 +433,9 @@ function sendWindowLayout(layout) {
     offsetY: Math.round(finite(layout.offsetY, 0)),
     detailOffset: Math.round(finite(layout.detailOffset, 0)),
     popoverShiftX: Math.round(finite(layout.popoverShiftX, 0)),
-    ready: layout.ready !== false
+    hideCapsule: layout.hideCapsule === true,
+    ready: layout.ready !== false,
+    sequence: Math.round(finite(layout.sequence, 0))
   };
   capsuleWindow.webContents.send('desktop-popover-placement', lastWindowLayout.placement);
   capsuleWindow.webContents.send('desktop-window-layout', lastWindowLayout);
@@ -425,7 +488,7 @@ function setCapsuleWindowBounds(bounds) {
 function normalizeLayout(layout) {
   const capsule = normalizeRect(layout?.capsule, DEFAULT_CAPSULE_SIZE);
   const toast = { height: Math.max(0, finite(layout?.toast?.height, 0)) };
-  const detail = normalizeRect(layout?.detail, DEFAULT_DETAIL_SIZE);
+  const detail = normalizeOptionalDetailRect(layout?.detail);
   return { capsule, toast, detail };
 }
 
@@ -442,6 +505,20 @@ function normalizeSize(value, fallback) {
   return {
     width: Math.max(1, Math.ceil(finite(value?.width, fallback.width))),
     height: Math.max(1, Math.ceil(finite(value?.height, fallback.height)))
+  };
+}
+
+function normalizeOptionalDetailRect(value) {
+  const width = finite(value?.width, 0);
+  const height = finite(value?.height, 0);
+  if (width <= 0 || height <= 0) {
+    return { x: 0, y: 0, width: 0, height: 0 };
+  }
+  return {
+    x: finite(value?.x, 0),
+    y: finite(value?.y, 0),
+    width,
+    height
   };
 }
 
@@ -492,9 +569,20 @@ async function ensureBackend() {
 
 function canConnect() {
   return new Promise((resolve) => {
-    const req = http.get(APP_URL, (res) => {
-      res.resume();
-      resolve(true);
+    const req = http.get(`${APP_URL}local-api/health`, (res) => {
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => {
+        body += chunk;
+      });
+      res.on('end', () => {
+        try {
+          const payload = JSON.parse(body);
+          resolve(res.statusCode === 200 && payload?.backend === 'electron-local-backend');
+        } catch {
+          resolve(false);
+        }
+      });
     });
     req.on('error', () => resolve(false));
     req.setTimeout(800, () => {

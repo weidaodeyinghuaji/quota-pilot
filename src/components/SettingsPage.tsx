@@ -33,7 +33,6 @@ interface Props {
 export default function SettingsPage({
   settings,
   onNewApiChange,
-  onPricingChange,
   onProviderSave,
   onProviderSelect,
   onProviderDelete,
@@ -71,7 +70,7 @@ export default function SettingsPage({
       <header className="settings-header">
         <div>
           <h2>设置</h2>
-          <p>管理供应商、同步和显示方式</p>
+          <p>管理供应商、同步频率和更新检测。</p>
         </div>
         <nav className="settings-tabs" aria-label="设置分类">
           <TabButton active={activeTab === 'api'} onClick={() => setActiveTab('api')}>
@@ -105,7 +104,7 @@ export default function SettingsPage({
                 const active = provider.id === newApi.activeProviderId;
                 return (
                   <article className={`provider-card ${active ? 'is-active' : ''}`} key={provider.id}>
-                    <span className="drag-dots" aria-hidden="true">••</span>
+                    <span className="drag-dots" aria-hidden="true">•••</span>
                     <span className="provider-avatar">{firstGlyph(provider.displayName)}</span>
                     <div className="provider-copy">
                       <strong>{provider.displayName || '未命名供应商'}</strong>
@@ -186,7 +185,7 @@ export default function SettingsPage({
               />
             </label>
             <label>
-              本机 Token 检查（秒）
+              本地 Codex Token 检查（秒）
               <input
                 value={newApi.codexTokenPollIntervalSeconds}
                 inputMode="numeric"
@@ -220,7 +219,7 @@ export default function SettingsPage({
               />
             </label>
             <label>
-              提醒停留（秒）
+              花费提醒停留（秒）
               <input
                 value={newApi.spendToastSeconds}
                 inputMode="numeric"
@@ -272,7 +271,7 @@ function AboutUpdateSection({
             {GITHUB_REPOSITORY_URL}
           </a>
         </dd>
-        <dt>Releases</dt>
+        <dt>发布页面</dt>
         <dd>
           <a href={GITHUB_RELEASES_URL} target="_blank" rel="noreferrer">
             {GITHUB_RELEASES_URL}
@@ -307,7 +306,7 @@ function formatUpdateStatus(state: UpdateCheckState) {
     const prefix = state.isNewer ? '发现新版本' : '已是最新版本';
     return `${prefix}：${state.latestTagName}`;
   }
-  return state.message || '尚未检查';
+  return state.message || '尚未检查更新';
 }
 
 function ProviderEditor({
@@ -346,7 +345,7 @@ function ProviderEditor({
       <header className="settings-header provider-editor-header">
         <div>
           <h2>{provider.displayName ? '编辑供应商' : '添加供应商'}</h2>
-          <p>连接信息和单价只影响这个 API Key</p>
+          <p>连接信息和单价只影响这个 API Key。</p>
         </div>
         <button className="secondary-action" type="button" onClick={onCancel}>返回</button>
       </header>
@@ -425,9 +424,9 @@ function TabButton({ active, children, onClick }: { active: boolean; children: R
 }
 
 function providerSummary(provider: NewApiManagedProvider) {
-  const mode = provider.apiKey ? '纯 API' : '未填写 API Key';
+  const mode = provider.apiKey ? '已填写 API Key' : '未填写 API Key';
   const url = provider.baseUrl || '未填写 URL';
-  return `本地 · ${mode} · Responses API · ${url}`;
+  return `本地计费 · ${mode} · Responses API · ${url}`;
 }
 
 function firstGlyph(value: string) {

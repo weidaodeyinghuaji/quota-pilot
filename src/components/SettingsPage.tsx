@@ -177,12 +177,13 @@ export default function SettingsPage({
           <section className="settings-section">
             <h2>同步</h2>
             <label>
-              页面刷新频率（秒）
+              本地摘要刷新（秒）
               <input
                 value={newApi.refreshIntervalSeconds}
                 inputMode="numeric"
                 onChange={(event) => onNewApiChange('refreshIntervalSeconds', event.currentTarget.value)}
               />
+              <span className="field-hint">只从本地 SQLite 重新读取今日/历史摘要，不请求平台，也不是刷新整个页面。</span>
             </label>
             <label>
               本地 Codex Token 检查（秒）

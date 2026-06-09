@@ -9,11 +9,11 @@ const APP_URL = `http://127.0.0.1:${PORT}/`;
 const APP_USER_MODEL_ID = 'CodexQuotaGlance.App';
 const ICON_PATH = path.join(__dirname, 'icon.ico');
 const DEFAULT_CAPSULE_SIZE = { width: 620, height: 72 };
-const DEFAULT_DETAIL_SIZE = { width: 520, height: 320 };
+const DEFAULT_DETAIL_SIZE = { width: 520, height: 180 };
+const MIN_DETAIL_SIZE = { width: 520, height: 120 };
 const WINDOW_MARGIN = 8;
 const SCREEN_MARGIN = 8;
 const CAPSULE_WINDOW_PAD = 2;
-const LAYOUT_SEND_DELAY_MS = 16;
 const TOAST_WINDOW_OVERLAP = 1;
 const SPEND_TOAST_HEIGHT = 24;
 const RESERVED_TOAST_SPACE = SPEND_TOAST_HEIGHT - TOAST_WINDOW_OVERLAP;
@@ -25,6 +25,7 @@ const TEXT = {
 };
 
 let capsuleWindow = null;
+let detailWindow = null;
 let settingsWindow = null;
 let tray = null;
 let ownsBackend = false;
@@ -33,15 +34,17 @@ let detailOpen = false;
 let toastOpen = false;
 let capsuleAnchor = null;
 let savedCapsulePosition = null;
-let layoutSequence = 0;
-let pendingBoundsCommit = null;
+let detailLayout = { ...DEFAULT_DETAIL_SIZE };
+let detailLayoutReady = false;
+let detailContentReady = false;
+let capsuleRestoreTimer = null;
+let capsuleUserHidden = false;
 let lastWindowLayout = {
   placement: 'bottom',
   offsetX: 0,
   offsetY: 0,
   detailOffset: 0,
   popoverShiftX: 0,
-  hideCapsule: false,
   ready: true
 };
 let lastLayout = {
@@ -57,6 +60,9 @@ async function createApp() {
   await ensureBackend();
   createTray();
   await createCapsuleWindow();
+  screen.on('display-metrics-changed', restoreCapsuleAfterDisplayChange);
+  screen.on('display-added', restoreCapsuleAfterDisplayChange);
+  screen.on('display-removed', restoreCapsuleAfterDisplayChange);
 }
 
 async function createCapsuleWindow() {
@@ -96,6 +102,55 @@ async function createCapsuleWindow() {
   capsuleWindow.setMenu(null);
   installWindowHandlers(capsuleWindow);
   await capsuleWindow.loadURL(`${APP_URL}?desktop=1`);
+  startCapsuleVisibilityGuard();
+}
+
+async function ensureDetailWindow() {
+  if (detailWindow && !detailWindow.isDestroyed()) return detailWindow;
+
+  detailWindow = new BrowserWindow({
+    width: DEFAULT_DETAIL_SIZE.width,
+    height: DEFAULT_DETAIL_SIZE.height,
+    minWidth: DEFAULT_DETAIL_SIZE.width,
+    minHeight: MIN_DETAIL_SIZE.height,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    skipTaskbar: true,
+    show: false,
+    opacity: 0,
+    autoHideMenuBar: true,
+    icon: ICON_PATH,
+    backgroundColor: '#00000000',
+    alwaysOnTop: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      preload: path.join(__dirname, 'preload.cjs')
+    }
+  });
+
+  detailWindow.setAlwaysOnTop(true, 'floating');
+  detailWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
+  detailWindow.setIgnoreMouseEvents(true);
+  detailWindow.webContents.on('did-finish-load', () => {
+    detailContentReady = true;
+    detailWindow?.webContents.send('desktop-popover-placement', lastWindowLayout.placement);
+  });
+  detailWindow.on('closed', () => {
+    detailWindow = null;
+    detailOpen = false;
+    detailLayoutReady = false;
+    detailContentReady = false;
+  });
+  detailWindow.setMenu(null);
+  installWindowHandlers(detailWindow);
+  await detailWindow.loadURL(`${APP_URL}?view=detail`);
+  detailWindow.showInactive();
+  return detailWindow;
 }
 
 async function openSettingsWindow() {
@@ -162,9 +217,12 @@ function toggleCapsuleWindow() {
     return;
   }
   if (capsuleWindow.isVisible()) {
+    capsuleUserHidden = true;
     detailOpen = false;
+    hideDetailWindow();
     capsuleWindow.hide();
   } else {
+    capsuleUserHidden = false;
     capsuleWindow.showInactive();
   }
 }
@@ -221,6 +279,7 @@ ipcMain.on('desktop-drag-end', (event) => {
     capsuleAnchor = capsule;
     sendPositionChanged(savedCapsulePosition);
     keepFloatingWindowOnTop();
+    if (detailOpen) positionDetailWindow();
   }
   dragState = null;
 });
@@ -230,21 +289,10 @@ ipcMain.on('desktop-detail-open', (event, open) => {
   if (!win || win !== capsuleWindow) return;
   detailOpen = Boolean(open);
   if (detailOpen) {
-    lastLayout = {
-      ...lastLayout,
-      detail: { width: 0, height: 0 }
-    };
-    sendWindowLayout({
-      placement: lastWindowLayout.placement,
-      offsetX: lastWindowLayout.offsetX,
-      offsetY: lastWindowLayout.offsetY,
-      detailOffset: lastWindowLayout.detailOffset,
-      popoverShiftX: lastWindowLayout.popoverShiftX,
-      ready: false
-    });
+    showDetailWindow().catch(() => {});
     return;
   }
-  resizeCapsuleWindow();
+  hideDetailWindow();
 });
 
 ipcMain.on('desktop-toast-open', (event, open) => {
@@ -259,17 +307,15 @@ ipcMain.on('desktop-layout-update', (event, layout) => {
   if (!win || win !== capsuleWindow) return;
   lastLayout = normalizeLayout(layout);
   resizeCapsuleWindow();
+  if (detailOpen) positionDetailWindow();
 });
 
-ipcMain.on('desktop-window-layout-applied', (event, sequence) => {
+ipcMain.on('desktop-detail-layout-update', (event, layout) => {
   const win = BrowserWindow.fromWebContents(event.sender);
-  if (!win || win !== capsuleWindow || !pendingBoundsCommit) return;
-  if (Number(sequence) !== pendingBoundsCommit.sequence) return;
-  const pending = pendingBoundsCommit;
-  pendingBoundsCommit = null;
-  const changed = setCapsuleWindowBounds(pending.bounds);
-  if (changed) keepFloatingWindowOnTop();
-  sendWindowLayoutSoon(pending.layout);
+  if (!win || win !== detailWindow) return;
+  detailLayout = normalizeSize(layout, DEFAULT_DETAIL_SIZE);
+  detailLayoutReady = true;
+  if (detailOpen) positionDetailWindow();
 });
 
 ipcMain.on('desktop-saved-position', (event, position) => {
@@ -286,6 +332,7 @@ ipcMain.on('desktop-saved-position', (event, position) => {
       height: lastLayout.capsule.height
     };
     resizeCapsuleWindow();
+    if (detailOpen) positionDetailWindow();
   }
 });
 
@@ -296,104 +343,127 @@ function resizeCapsuleWindow() {
   const layout = lastLayout;
   const workArea = screen.getDisplayMatching(current).workArea;
   const capsuleSize = normalizeSize(layout.capsule, DEFAULT_CAPSULE_SIZE);
-  const detailSize = normalizeDetailSize(layout.detail);
   const currentCapsuleScreen = getAnchoredCapsuleBounds(current, capsuleSize, workArea);
 
-  if (!detailOpen) {
-    pendingBoundsCommit = null;
-    const width = capsuleSize.width + CAPSULE_WINDOW_PAD;
-    const toastSpace = RESERVED_TOAST_SPACE;
-    const height = capsuleSize.height + toastSpace + CAPSULE_WINDOW_PAD;
-    const x = clamp(currentCapsuleScreen.x, workArea.x + SCREEN_MARGIN, workArea.x + workArea.width - width - SCREEN_MARGIN);
-    const y = clamp(
-      currentCapsuleScreen.y - toastSpace,
-      workArea.y + SCREEN_MARGIN,
-      workArea.y + workArea.height - height - SCREEN_MARGIN
-    );
-    const offsetX = clamp(currentCapsuleScreen.x - x, 0, Math.max(0, width - capsuleSize.width));
-    const offsetY = clamp(currentCapsuleScreen.y - y, 0, Math.max(0, height - capsuleSize.height));
-    capsuleAnchor = { x: x + offsetX, y: y + offsetY, width: capsuleSize.width, height: capsuleSize.height };
-    const compactLayout = { placement: 'bottom', offsetX, offsetY, detailOffset: 0, popoverShiftX: 0 };
-    const compactBounds = { x, y, width, height };
-    if (shouldCommitBoundsBeforeLayout(current, compactBounds)) {
-      const sequence = nextLayoutSequence();
-      pendingBoundsCommit = { sequence, bounds: compactBounds, layout: compactLayout };
-      sendWindowLayout({ ...compactLayout, ready: false, hideCapsule: true, sequence });
+  const width = capsuleSize.width + CAPSULE_WINDOW_PAD;
+  const toastSpace = RESERVED_TOAST_SPACE;
+  const height = capsuleSize.height + toastSpace + CAPSULE_WINDOW_PAD;
+  const x = clamp(currentCapsuleScreen.x, workArea.x + SCREEN_MARGIN, workArea.x + workArea.width - width - SCREEN_MARGIN);
+  const y = clamp(
+    currentCapsuleScreen.y - toastSpace,
+    workArea.y + SCREEN_MARGIN,
+    workArea.y + workArea.height - height - SCREEN_MARGIN
+  );
+  const offsetX = clamp(currentCapsuleScreen.x - x, 0, Math.max(0, width - capsuleSize.width));
+  const offsetY = clamp(currentCapsuleScreen.y - y, 0, Math.max(0, height - capsuleSize.height));
+  capsuleAnchor = { x: x + offsetX, y: y + offsetY, width: capsuleSize.width, height: capsuleSize.height };
+  const changed = setCapsuleWindowBounds({ x, y, width, height });
+  sendWindowLayout({ placement: 'bottom', offsetX, offsetY, detailOffset: 0, popoverShiftX: 0 });
+  if (changed) keepFloatingWindowOnTop();
+}
+
+async function showDetailWindow() {
+  const win = await ensureDetailWindow();
+  if (!detailOpen || !capsuleWindow || capsuleWindow.isDestroyed()) return;
+  if (!detailContentReady || !detailLayoutReady) {
+    await waitForDetailReadiness();
+    if (!detailOpen || win.isDestroyed()) return;
+  }
+  positionDetailWindow();
+  await new Promise((resolve) => setTimeout(resolve, 32));
+  if (!detailOpen || win.isDestroyed()) return;
+  win.setIgnoreMouseEvents(false);
+  win.setOpacity(1);
+  if (!win.isVisible()) win.showInactive();
+  keepFloatingWindowOnTop(win);
+}
+
+function waitForDetailReadiness() {
+  const startedAt = Date.now();
+  return new Promise((resolve) => {
+    const tick = () => {
+      if ((detailContentReady && detailLayoutReady) || Date.now() - startedAt > 360) {
+        resolve();
+        return;
+      }
+      setTimeout(tick, 16);
+    };
+    tick();
+  });
+}
+
+function hideDetailWindow() {
+  if (!detailWindow || detailWindow.isDestroyed()) return;
+  detailWindow.setIgnoreMouseEvents(true);
+  detailWindow.setOpacity(0);
+}
+
+function positionDetailWindow() {
+  if (!detailWindow || detailWindow.isDestroyed() || !capsuleWindow || capsuleWindow.isDestroyed()) return;
+  const capsule = getCurrentCapsuleScreenBounds();
+  const detailSize = normalizeSize(detailLayout, DEFAULT_DETAIL_SIZE);
+  detailSize.width = Math.max(MIN_DETAIL_SIZE.width, detailSize.width);
+  detailSize.height = Math.max(MIN_DETAIL_SIZE.height, detailSize.height);
+  const display = screen.getDisplayMatching({
+    x: capsule.x,
+    y: capsule.y,
+    width: capsule.width,
+    height: capsule.height
+  });
+  const workArea = display.workArea;
+  const below = workArea.y + workArea.height - (capsule.y + capsule.height);
+  const above = capsule.y - workArea.y;
+  const placement = below < detailSize.height + WINDOW_MARGIN && above > below ? 'top' : 'bottom';
+  const x = clamp(
+    Math.round(capsule.x + (capsule.width - detailSize.width) / 2),
+    workArea.x + SCREEN_MARGIN,
+    workArea.x + workArea.width - detailSize.width - SCREEN_MARGIN
+  );
+  const desiredY = placement === 'top'
+    ? capsule.y - detailSize.height - WINDOW_MARGIN
+    : capsule.y + capsule.height + WINDOW_MARGIN;
+  const y = clamp(
+    Math.round(desiredY),
+    workArea.y + SCREEN_MARGIN,
+    workArea.y + workArea.height - detailSize.height - SCREEN_MARGIN
+  );
+  detailWindow.setBounds({ x, y, width: detailSize.width, height: detailSize.height }, false);
+  detailWindow.webContents.send('desktop-popover-placement', placement);
+}
+
+function startCapsuleVisibilityGuard() {
+  if (capsuleRestoreTimer) clearInterval(capsuleRestoreTimer);
+  capsuleRestoreTimer = setInterval(() => {
+    if (!capsuleWindow || capsuleWindow.isDestroyed()) return;
+    if (isDisplayFullscreenForCapsule()) return;
+    if (!capsuleWindow.isVisible()) {
+      if (!capsuleUserHidden) capsuleWindow.showInactive();
       return;
     }
-    const changed = setCapsuleWindowBounds(compactBounds);
-    sendWindowLayout(compactLayout);
-    if (changed) keepFloatingWindowOnTop();
-    return;
-  }
-
-  capsuleAnchor = currentCapsuleScreen;
-  const detailWidth = detailSize.width;
-  const detailHeight = detailSize.height;
-  if (detailWidth <= 0 || detailHeight <= 0) {
-    pendingBoundsCommit = null;
-    sendWindowLayout({
-      placement: lastWindowLayout.placement,
-      offsetX: lastWindowLayout.offsetX,
-      offsetY: lastWindowLayout.offsetY,
-      detailOffset: lastWindowLayout.detailOffset,
-      popoverShiftX: lastWindowLayout.popoverShiftX,
-      ready: false
-    });
-    return;
-  }
-  const capsuleWindowWidth = capsuleSize.width + CAPSULE_WINDOW_PAD;
-  const capsuleWindowHeight = capsuleSize.height + CAPSULE_WINDOW_PAD;
-  const width = Math.max(capsuleWindowWidth, detailWidth);
-  const height = capsuleWindowHeight + detailHeight + WINDOW_MARGIN;
-  const below = workArea.y + workArea.height - (currentCapsuleScreen.y + currentCapsuleScreen.height);
-  const above = currentCapsuleScreen.y - workArea.y;
-  const placement = below < detailHeight + WINDOW_MARGIN && above > below ? 'top' : 'bottom';
-  const rawX = currentCapsuleScreen.x;
-  const x = clamp(rawX, workArea.x + SCREEN_MARGIN, workArea.x + workArea.width - width - SCREEN_MARGIN);
-  const y = placement === 'top'
-    ? clamp(currentCapsuleScreen.y - detailHeight - WINDOW_MARGIN, workArea.y + SCREEN_MARGIN, workArea.y + workArea.height - height - SCREEN_MARGIN)
-    : clamp(currentCapsuleScreen.y, workArea.y + SCREEN_MARGIN, workArea.y + workArea.height - height - SCREEN_MARGIN);
-  const offsetX = clamp(currentCapsuleScreen.x - x, 0, Math.max(0, width - capsuleWindowWidth));
-  const offsetY = placement === 'top'
-    ? clamp(currentCapsuleScreen.y - y, 0, Math.max(0, height - capsuleWindowHeight))
-    : 0;
-  const centeredDetailLeft = offsetX + Math.round((capsuleSize.width - detailWidth) / 2);
-  const desiredDetailLeft = clamp(centeredDetailLeft, 0, Math.max(0, width - detailWidth));
-  const nextLayout = {
-    placement,
-    offsetX,
-    offsetY,
-    detailOffset: placement === 'top' ? detailHeight + WINDOW_MARGIN : 0,
-    popoverShiftX: desiredDetailLeft - centeredDetailLeft
-  };
-  const nextBounds = { x, y, width, height };
-  if (shouldWaitForLayoutBeforeBounds(current, nextBounds, nextLayout)) {
-    const sequence = nextLayoutSequence();
-    pendingBoundsCommit = { sequence, bounds: nextBounds, layout: nextLayout };
-    sendWindowLayout({ ...nextLayout, sequence });
-    return;
-  }
-  pendingBoundsCommit = null;
-  sendWindowLayout(nextLayout);
-  const changed = setCapsuleWindowBounds(nextBounds);
-  if (changed) keepFloatingWindowOnTop();
-  sendWindowLayoutSoon(nextLayout);
+    keepFloatingWindowOnTop(capsuleWindow);
+    if (detailOpen && detailWindow && !detailWindow.isDestroyed()) {
+      positionDetailWindow();
+      keepFloatingWindowOnTop(detailWindow);
+    }
+  }, 2000);
 }
 
-function shouldWaitForLayoutBeforeBounds(currentBounds, nextBounds, layout) {
-  if (layout.placement !== 'top') return false;
-  if (layout.offsetY <= finite(lastWindowLayout.offsetY, 0)) return false;
-  return Math.round(finite(nextBounds.y, currentBounds.y)) < Math.round(finite(currentBounds.y, nextBounds.y));
+function restoreCapsuleAfterDisplayChange() {
+  setTimeout(() => {
+    if (!capsuleWindow || capsuleWindow.isDestroyed() || capsuleUserHidden) return;
+    if (isDisplayFullscreenForCapsule()) return;
+    if (!capsuleWindow.isVisible()) capsuleWindow.showInactive();
+    resizeCapsuleWindow();
+    keepFloatingWindowOnTop(capsuleWindow);
+    if (detailOpen) positionDetailWindow();
+  }, 300);
 }
 
-function shouldCommitBoundsBeforeLayout(currentBounds, nextBounds) {
-  return Math.round(finite(nextBounds.y, currentBounds.y)) > Math.round(finite(currentBounds.y, nextBounds.y));
-}
-
-function nextLayoutSequence() {
-  layoutSequence = (layoutSequence % 1000000) + 1;
-  return layoutSequence;
+function isDisplayFullscreenForCapsule() {
+  if (!capsuleWindow || capsuleWindow.isDestroyed()) return false;
+  const bounds = capsuleWindow.getBounds();
+  const display = screen.getDisplayMatching(bounds);
+  return Boolean(display?.fullscreen);
 }
 
 function getAnchoredCapsuleBounds(current, capsuleSize, workArea) {
@@ -433,20 +503,10 @@ function sendWindowLayout(layout) {
     offsetY: Math.round(finite(layout.offsetY, 0)),
     detailOffset: Math.round(finite(layout.detailOffset, 0)),
     popoverShiftX: Math.round(finite(layout.popoverShiftX, 0)),
-    hideCapsule: layout.hideCapsule === true,
-    ready: layout.ready !== false,
-    sequence: Math.round(finite(layout.sequence, 0))
+    ready: layout.ready !== false
   };
   capsuleWindow.webContents.send('desktop-popover-placement', lastWindowLayout.placement);
   capsuleWindow.webContents.send('desktop-window-layout', lastWindowLayout);
-}
-
-function sendWindowLayoutSoon(layout) {
-  if (!capsuleWindow || capsuleWindow.isDestroyed()) return;
-  setTimeout(() => {
-    if (!capsuleWindow || capsuleWindow.isDestroyed()) return;
-    sendWindowLayout(layout);
-  }, LAYOUT_SEND_DELAY_MS);
 }
 
 function sendPositionChanged(position) {
@@ -457,11 +517,10 @@ function sendPositionChanged(position) {
   });
 }
 
-function keepFloatingWindowOnTop() {
-  if (!capsuleWindow || capsuleWindow.isDestroyed()) return;
-  capsuleWindow.setAlwaysOnTop(false);
-  capsuleWindow.setAlwaysOnTop(true, 'floating');
-  capsuleWindow.moveTop();
+function keepFloatingWindowOnTop(win = capsuleWindow) {
+  if (!win || win.isDestroyed()) return;
+  win.setAlwaysOnTop(true, 'floating');
+  win.moveTop();
 }
 
 function setCapsuleWindowBounds(bounds) {
@@ -488,8 +547,7 @@ function setCapsuleWindowBounds(bounds) {
 function normalizeLayout(layout) {
   const capsule = normalizeRect(layout?.capsule, DEFAULT_CAPSULE_SIZE);
   const toast = { height: Math.max(0, finite(layout?.toast?.height, 0)) };
-  const detail = normalizeOptionalDetailRect(layout?.detail);
-  return { capsule, toast, detail };
+  return { capsule, toast, detail: { width: 0, height: 0 } };
 }
 
 function normalizeRect(value, fallback) {
@@ -505,32 +563,6 @@ function normalizeSize(value, fallback) {
   return {
     width: Math.max(1, Math.ceil(finite(value?.width, fallback.width))),
     height: Math.max(1, Math.ceil(finite(value?.height, fallback.height)))
-  };
-}
-
-function normalizeOptionalDetailRect(value) {
-  const width = finite(value?.width, 0);
-  const height = finite(value?.height, 0);
-  if (width <= 0 || height <= 0) {
-    return { x: 0, y: 0, width: 0, height: 0 };
-  }
-  return {
-    x: finite(value?.x, 0),
-    y: finite(value?.y, 0),
-    width,
-    height
-  };
-}
-
-function normalizeDetailSize(value) {
-  const rawWidth = finite(value?.width, 0);
-  const rawHeight = finite(value?.height, 0);
-  if (rawWidth <= 0 || rawHeight <= 0) {
-    return { width: 0, height: 0 };
-  }
-  return {
-    width: Math.max(DEFAULT_DETAIL_SIZE.width, Math.ceil(rawWidth)),
-    height: Math.max(DEFAULT_DETAIL_SIZE.height, Math.ceil(rawHeight))
   };
 }
 
@@ -603,6 +635,13 @@ app.on('window-all-closed', (event) => {
 });
 
 app.on('before-quit', async () => {
+  screen.off('display-metrics-changed', restoreCapsuleAfterDisplayChange);
+  screen.off('display-added', restoreCapsuleAfterDisplayChange);
+  screen.off('display-removed', restoreCapsuleAfterDisplayChange);
+  if (capsuleRestoreTimer) {
+    clearInterval(capsuleRestoreTimer);
+    capsuleRestoreTimer = null;
+  }
   if (ownsBackend) {
     await stopLocalBackend();
     ownsBackend = false;

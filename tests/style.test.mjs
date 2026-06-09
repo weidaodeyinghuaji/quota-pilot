@@ -37,6 +37,8 @@ assert.match(css, /\.capsule-popover\s*{[\s\S]*overflow:\s*visible;/);
 assert.match(css, /\.draggable-capsule\[data-desktop-shell="true"\] \.capsule-stack\s*{[\s\S]*padding-top:\s*0;/);
 assert.doesNotMatch(css, /padding-top:\s*328px;/);
 assert.match(css, /\.draggable-capsule\[data-desktop-shell="true"\] \.capsule-popover\s*{[\s\S]*width:\s*520px;/);
+assert.match(css, /\.capsule-popover\.is-detached-detail\s*{[\s\S]*animation:\s*none;/);
+assert.match(css, /\.capsule-popover\.is-detached-detail\s*{[\s\S]*opacity:\s*1;/);
 assert.match(css, /\.draggable-capsule\[data-desktop-shell="true"\]\[data-layout-ready="false"\] \.capsule-popover\s*{[\s\S]*opacity:\s*0;/);
 assert.match(css, /@keyframes popover-slide-up/);
 assert.match(css, /@keyframes popover-slide-down/);

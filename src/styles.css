@@ -26,6 +26,13 @@ body:has(.settings-window-shell) {
   background: #f6f8fb;
 }
 
+html:has(.detail-window-shell),
+body:has(.detail-window-shell) {
+  width: 520px;
+  height: max-content;
+  overflow: hidden;
+}
+
 .app-shell {
   min-height: 100vh;
   position: relative;
@@ -46,6 +53,15 @@ body:has(.settings-window-shell) {
   overflow: auto;
   color: #1b2430;
   background: #f6f8fb;
+}
+
+.detail-window-shell {
+  width: 520px;
+  min-height: 0;
+  padding: 0;
+  overflow: visible;
+  background: transparent;
+  display: block;
 }
 
 .glance-surface {
@@ -223,13 +239,17 @@ body:has(.settings-window-shell) {
   max-width: none;
 }
 
-.draggable-capsule[data-desktop-shell="true"][data-capsule-hidden="true"] .floating-capsule {
-  opacity: 0;
-}
-
 .draggable-capsule[data-popover-placement="top"] .capsule-popover {
   top: auto;
   bottom: calc(100% + 8px);
+}
+
+.capsule-popover.is-detached-detail {
+  position: static;
+  width: 520px;
+  transform: none;
+  animation: none;
+  opacity: 1;
 }
 
 @keyframes popover-slide-down {

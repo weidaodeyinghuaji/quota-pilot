@@ -3,7 +3,14 @@ import { estimateTokenCost, resolveBalance } from './pricing.mjs';
 export function buildSnapshots(settings, now = new Date(), options = {}) {
   const pricingProfile = settings?.pricingProfile ?? {};
   const providerUsage = options.newApiSnapshot?.usage ?? {};
-  const usageForEstimate = hasAnyTokenUsage(providerUsage) ? providerUsage : {};
+  const codexTokenSummary = options.codexTokenSummary;
+  const localTodayUsage = enrichUsageWithEstimate(codexTokenSummary?.today, pricingProfile);
+  const localAllUsage = enrichUsageWithEstimate(codexTokenSummary?.all, pricingProfile);
+  const usageForEstimate = hasAnyTokenUsage(localTodayUsage)
+    ? localTodayUsage
+    : hasAnyTokenUsage(providerUsage)
+      ? providerUsage
+      : {};
   const tokenCost = estimateTokenCost(usageForEstimate, pricingProfile);
   const balance = options.newApiError && !options.newApiSnapshot
     ? null
@@ -17,7 +24,6 @@ export function buildSnapshots(settings, now = new Date(), options = {}) {
   const updatedAt = now.toISOString();
   const codexStatus = options.codexStatus ?? {};
   const codexTokenEvent = options.codexTokenEvent;
-  const codexTokenSummary = options.codexTokenSummary;
   const newApiSnapshot = options.newApiSnapshot
     ? mergeNewApiSnapshot(options.newApiSnapshot, {
         settings,
@@ -27,7 +33,11 @@ export function buildSnapshots(settings, now = new Date(), options = {}) {
         error: options.newApiError,
         localLogSummary: options.localLogSummary,
         localLogSync: options.localLogSync,
-        codexTokenSummary
+        codexTokenSummary: {
+          ...codexTokenSummary,
+          today: localTodayUsage,
+          all: localAllUsage
+        }
       })
     : buildLocalNewApiSnapshot({
         settings,
@@ -37,7 +47,11 @@ export function buildSnapshots(settings, now = new Date(), options = {}) {
         error: options.newApiError,
         localLogSummary: options.localLogSummary,
         localLogSync: options.localLogSync,
-        codexTokenSummary
+        codexTokenSummary: {
+          ...codexTokenSummary,
+          today: localTodayUsage,
+          all: localAllUsage
+        }
       });
 
   return [
@@ -56,7 +70,11 @@ export function buildSnapshots(settings, now = new Date(), options = {}) {
         message: codexStatus.quotaMessage
       },
       usage: buildCodexUsage(codexTokenEvent),
-      localLogs: buildCodexLocalLogs(codexTokenSummary),
+      localLogs: buildCodexLocalLogs({
+        ...codexTokenSummary,
+        today: localTodayUsage,
+        all: localAllUsage
+      }),
       activity: codexStatus.activity,
       status: 'ok',
       updatedAt

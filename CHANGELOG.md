@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.4
+
+- Reworked the desktop detail card into a detached transparent window that stays prewarmed instead of repeatedly hiding and showing, reducing flicker during frequent capsule clicks.
+- Fixed the capsule window accidentally becoming transparent after the detail-window opacity change, and added regression coverage so capsule opacity cannot be disabled again.
+- Tightened edge positioning for the detail card by using the real measured card height instead of a large fixed fallback height.
+- Added local Codex token summary estimation for today's API-mode spend, so the capsule and detail panel update from local SQLite data first while platform logs remain a slower calibration source.
+- Renamed the misleading "page refresh" setting to "local summary refresh" and clarified that it only rereads local SQLite summaries, not the platform API.
+- Strengthened tests around detached detail layout, local spend estimation, update copy, and desktop window behavior.
+
 ## 0.1.3
 
 - Fixed the floating capsule anchor timing when opening and closing the detail panel near the screen edge.

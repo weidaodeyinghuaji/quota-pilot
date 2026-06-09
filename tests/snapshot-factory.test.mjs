@@ -333,6 +333,34 @@ const syncCoverageFromSummary = buildSnapshots(baseSettings, new Date('2026-06-0
 assert.equal(syncCoverageFromSummary.localLogs.coverage.complete, false);
 assert.equal(syncCoverageFromSummary.localLogs.coverage.missingBeforeSeconds, 259200);
 
+const localCodexTodayEstimate = buildSnapshots(baseSettings, new Date('2026-06-03T09:00:01.000Z'), {
+  codexTokenSummary: {
+    today: {
+      requestCount: 3,
+      inputTokens: 1_000_000,
+      cachedInputTokens: 500_000,
+      outputTokens: 100_000,
+      totalTokens: 1_100_000,
+      rawUsedAmount: 0,
+      usedAmount: 0,
+      cacheHitRate: 50
+    },
+    all: {
+      requestCount: 3,
+      inputTokens: 1_000_000,
+      cachedInputTokens: 500_000,
+      outputTokens: 100_000,
+      totalTokens: 1_100_000
+    }
+  }
+}).find((snapshot) => snapshot.providerType === 'new-api');
+
+assert.equal(localCodexTodayEstimate.localLogs.today.requestCount, 3);
+assert.equal(localCodexTodayEstimate.localLogs.today.inputTokens, 1_000_000);
+assert.equal(localCodexTodayEstimate.localLogs.today.rawUsedAmount, 1_025_000);
+assert.equal(localCodexTodayEstimate.localLogs.today.usedAmount, 2.05);
+assert.equal(round(localCodexTodayEstimate.usage.estimatedCost), 2.05);
+
 console.log('snapshot factory tests passed');
 
 function round(value) {

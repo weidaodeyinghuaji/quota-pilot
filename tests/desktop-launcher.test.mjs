@@ -6,6 +6,14 @@ const electronPreload = readFileSync(new URL('../electron/preload.cjs', import.m
 const backend = readFileSync(new URL('../electron/local-backend.cjs', import.meta.url), 'utf8');
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+const capsuleWindowSource = electronMain.slice(
+  electronMain.indexOf('async function createCapsuleWindow()'),
+  electronMain.indexOf('async function ensureDetailWindow()')
+);
+const detailWindowSource = electronMain.slice(
+  electronMain.indexOf('async function ensureDetailWindow()'),
+  electronMain.indexOf('async function openSettingsWindow()')
+);
 
 assert.equal(packageJson.main, 'electron/main.cjs');
 assert.match(packageJson.scripts.electron, /electron \./);
@@ -31,28 +39,49 @@ assert.match(electronMain, /openSettingsWindow/);
 assert.match(electronMain, /desktop=1/);
 assert.match(electronMain, /DEFAULT_CAPSULE_SIZE\s*=\s*\{\s*width:\s*620,\s*height:\s*72\s*\}/);
 assert.match(electronMain, /DEFAULT_DETAIL_SIZE/);
+assert.match(electronMain, /MIN_DETAIL_SIZE/);
 assert.match(electronMain, /WINDOW_MARGIN/);
 assert.match(electronMain, /desktop-detail-open/);
 assert.match(electronMain, /desktop-layout-update/);
+assert.match(electronMain, /desktop-detail-layout-update/);
 assert.match(electronMain, /desktop-toast-open/);
 assert.match(electronMain, /RESERVED_TOAST_SPACE/);
 assert.match(electronMain, /setCapsuleWindowBounds/);
 assert.match(electronPreload, /setToastOpen/);
-assert.match(electronPreload, /layoutApplied/);
 assert.match(electronMain, /desktop-popover-placement/);
 assert.match(electronMain, /resizeCapsuleWindow/);
 assert.match(electronMain, /normalizeLayout/);
-assert.match(electronMain, /normalizeOptionalDetailRect/);
+assert.match(electronMain, /ensureDetailWindow/);
+assert.match(electronMain, /showDetailWindow/);
+assert.match(electronMain, /hideDetailWindow/);
+assert.match(electronMain, /positionDetailWindow/);
+assert.match(electronMain, /waitForDetailReadiness/);
+assert.match(electronMain, /detailContentReady/);
+assert.match(electronMain, /detailLayoutReady/);
+assert.match(electronMain, /setIgnoreMouseEvents\(true\)/);
+assert.match(electronMain, /setIgnoreMouseEvents\(false\)/);
+assert.match(electronMain, /setOpacity\(0\)/);
+assert.match(electronMain, /setOpacity\(1\)/);
+assert.doesNotMatch(electronMain, /detailWindow\.hide\(\)/);
+assert.doesNotMatch(capsuleWindowSource, /opacity:\s*0/);
+assert.match(detailWindowSource, /opacity:\s*0/);
+assert.match(electronMain, /\?view=detail/);
+assert.match(electronMain, /detailWindow\.setBounds\(\{\s*x,\s*y,\s*width:\s*detailSize\.width,\s*height:\s*detailSize\.height\s*\}/);
 assert.match(electronMain, /detail:\s*\{\s*width:\s*0,\s*height:\s*0\s*\}/);
 assert.doesNotMatch(electronMain, /const detail = normalizeRect\(layout\?\.detail,\s*DEFAULT_DETAIL_SIZE\)/);
 assert.match(electronMain, /capsuleAnchor/);
-assert.match(electronMain, /pendingBoundsCommit/);
-assert.match(electronMain, /desktop-window-layout-applied/);
-assert.match(electronMain, /shouldWaitForLayoutBeforeBounds/);
-assert.match(electronMain, /shouldCommitBoundsBeforeLayout/);
-assert.match(electronMain, /hideCapsule/);
+assert.doesNotMatch(electronMain, /pendingBoundsCommit/);
+assert.doesNotMatch(electronMain, /desktop-window-layout-applied/);
+assert.doesNotMatch(electronMain, /shouldWaitForLayoutBeforeBounds/);
+assert.doesNotMatch(electronMain, /shouldCommitBoundsBeforeLayout/);
+assert.doesNotMatch(electronMain, /hideCapsule/);
 assert.match(electronMain, /keepFloatingWindowOnTop/);
 assert.match(electronMain, /moveTop\(\)/);
+assert.doesNotMatch(electronMain, /setAlwaysOnTop\(false\)/);
+assert.match(electronMain, /startCapsuleVisibilityGuard/);
+assert.match(electronMain, /restoreCapsuleAfterDisplayChange/);
+assert.match(electronMain, /isDisplayFullscreenForCapsule/);
+assert.match(electronMain, /screen\.on\('display-metrics-changed'/);
 assert.match(electronMain, /createTrayImage/);
 assert.match(electronMain, /startLocalBackend/);
 assert.match(electronMain, /app\.getAppPath\(\)/);
@@ -60,7 +89,7 @@ assert.match(electronMain, /local-api\/health/);
 assert.match(electronMain, /electron-local-backend/);
 assert.match(backend, /startLocalBackend/);
 assert.match(backend, /CodexQuotaGlance/);
-assert.doesNotMatch(electronMain, /view=detail/);
+assert.match(electronPreload, /updateDetailLayout/);
 assert.doesNotMatch(electronMain, /CAPSULE_EXPANDED_SIZE/);
 assert.doesNotMatch(electronMain, /local-server\.py/);
 assert.doesNotMatch(electronMain, /local-server\.exe/);

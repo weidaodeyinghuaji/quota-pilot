@@ -32,6 +32,7 @@ export default function App() {
   const urlParams = typeof window === 'undefined' ? new URLSearchParams() : new URLSearchParams(window.location.search);
   const isDesktopCapsule = urlParams.get('desktop') === '1';
   const isSettingsWindow = urlParams.get('view') === 'settings';
+  const isDetailWindow = urlParams.get('view') === 'detail';
   const [settings, setSettings] = React.useState(() => loadAppSettings());
   const [newApiSnapshot, setNewApiSnapshot] = React.useState(null);
   const [codexStatus, setCodexStatus] = React.useState(null);
@@ -111,9 +112,9 @@ export default function App() {
   }, []);
 
   React.useEffect(() => {
-    if (isDesktopCapsule) return;
+    if (isDesktopCapsule || isDetailWindow) return;
     runUpdateCheck({ silent: true });
-  }, [isDesktopCapsule, runUpdateCheck]);
+  }, [isDesktopCapsule, isDetailWindow, runUpdateCheck]);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -343,19 +344,27 @@ export default function App() {
     const refresh = () => {
       fetchLatestCodexTokenUsage()
         .then((event) => {
-          if (!active || !event?.id) return;
-          const estimatedEvent = enrichSpendEventWithEstimate(event, settings.pricingProfile);
-          setLatestCodexTokenEvent(estimatedEvent);
+          if (!active) return;
+          const estimatedEvent = event?.id ? enrichSpendEventWithEstimate(event, settings.pricingProfile) : null;
+          if (estimatedEvent) {
+            setLatestCodexTokenEvent(estimatedEvent);
+          }
           fetchCodexTokenSummary()
             .then((summary) => {
               if (active) setCodexTokenSummary(summary ?? null);
             })
             .catch(() => {});
-          if (event.id === seenSpendEventIdRef.current) return;
+          if (!event?.id || event.id === seenSpendEventIdRef.current) return;
           seenSpendEventIdRef.current = event.id;
           setSpendEvent(estimatedEvent);
         })
-        .catch(() => {});
+        .catch(() => {
+          fetchCodexTokenSummary()
+            .then((summary) => {
+              if (active) setCodexTokenSummary(summary ?? null);
+            })
+            .catch(() => {});
+        });
     };
 
     refresh();
@@ -458,6 +467,16 @@ export default function App() {
     );
   }
 
+  if (isDetailWindow) {
+    return (
+      <DetailWindowShell>
+        <div className="capsule-popover is-detached-detail" data-no-drag="true">
+          <DetailPanel snapshot={activeSnapshot} />
+        </div>
+      </DetailWindowShell>
+    );
+  }
+
   return (
     <main className="app-shell">
       <section className="glance-surface" aria-label="Quota glance" data-settings-open={settingsOpen ? 'true' : 'false'}>
@@ -478,7 +497,7 @@ export default function App() {
               expanded={detailOpen}
               snapshot={activeSnapshot}
             />
-            {detailOpen && (
+            {detailOpen && !isDesktopCapsule && (
               <div className="capsule-popover" data-no-drag="true">
                 <DetailPanel snapshot={activeSnapshot} />
               </div>
@@ -521,6 +540,42 @@ export default function App() {
         dismissed={updateReminderDismissed}
         onDismiss={() => setUpdateReminderDismissed(true)}
       />
+    </main>
+  );
+}
+
+function DetailWindowShell({ children }: { children: React.ReactNode }) {
+  const shellRef = React.useRef<HTMLElement | null>(null);
+
+  React.useLayoutEffect(() => {
+    if (!window.codexQuotaDesktop?.updateDetailLayout) return undefined;
+    let frame = 0;
+    const sendLayout = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        const rect = shellRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        window.codexQuotaDesktop?.updateDetailLayout({
+          width: Math.ceil(rect.width),
+          height: Math.ceil(rect.height)
+        });
+      });
+    };
+
+    sendLayout();
+    const timeout = window.setTimeout(sendLayout, 80);
+    const observer = new ResizeObserver(sendLayout);
+    if (shellRef.current) observer.observe(shellRef.current);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
+      observer.disconnect();
+    };
+  }, [children]);
+
+  return (
+    <main ref={shellRef} className="detail-window-shell">
+      {children}
     </main>
   );
 }

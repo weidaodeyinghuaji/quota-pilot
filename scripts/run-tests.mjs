@@ -25,7 +25,9 @@ const nodeTests = [
   'tests/new-api-client.test.mjs',
   'tests/local-log-store.test.mjs',
   'tests/codex-status-store.test.mjs',
-  'tests/snapshot-factory.test.mjs'
+  'tests/snapshot-factory.test.mjs',
+  'tests/settings-page-copy.test.mjs',
+  'tests/release-notes-script.test.mjs'
 ];
 
 for (const test of nodeTests) {

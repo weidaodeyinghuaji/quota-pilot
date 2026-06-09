@@ -35,6 +35,9 @@ jobs:
       - name: Build Electron release
         run: npm run dist:win -- --publish never
 
+      - name: Extract release notes
+        run: node scripts/extract-release-notes.mjs "${{ github.ref_name }}" release-notes.md
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -48,6 +51,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          body_path: release-notes.md
           files: |
             dist-electron/*.exe
             dist-electron/*.zip

@@ -210,8 +210,12 @@ async function openSettingsWindow() {
 
 async function createUpdateWindow(options = {}) {
   const force = options.force === true;
+  const autoDownload = options.autoDownload === true;
   if (updateReminderDismissed && !force) return;
-  if (updateWindow && !updateWindow.isDestroyed()) return;
+  if (updateWindow && !updateWindow.isDestroyed()) {
+    if (autoDownload) updateWindow.webContents.send('desktop-update-auto-download');
+    return;
+  }
 
   updateWindow = new BrowserWindow({
     width: 460,
@@ -240,7 +244,8 @@ async function createUpdateWindow(options = {}) {
   });
   updateWindow.setMenu(null);
   installWindowHandlers(updateWindow);
-  await updateWindow.loadURL(`${APP_URL}?view=update`);
+  const updateUrl = `${APP_URL}?${autoDownload ? 'view=update&download=1' : 'view=update'}`;
+  await updateWindow.loadURL(updateUrl);
 }
 
 function createTray() {
@@ -402,8 +407,8 @@ ipcMain.on('desktop-update-ready', (event) => {
   updateWindow.focus();
 });
 
-ipcMain.on('desktop-update-open-window', () => {
-  createUpdateWindow({ force: true })
+ipcMain.on('desktop-update-open-window', (_event, payload) => {
+  createUpdateWindow({ force: true, autoDownload: Boolean(payload?.autoDownload) })
     .then(() => {
       if (updateWindow && !updateWindow.isDestroyed()) {
         updateWindow.show();
@@ -638,10 +643,9 @@ async function downloadUpdateInstaller(asset, win) {
     });
     const received = result.received;
     const total = result.total;
-    sendUpdateDownloadProgress(win, { status: 'launching', received, total, percent: 100, message: '下载完成，正在启动安装程序...' });
-    const openError = await shell.openPath(target);
-    if (openError) throw new Error(openError);
-    sendUpdateDownloadProgress(win, { status: 'launched', received, total, percent: 100, message: '安装程序已启动，请按提示完成安装。' });
+    sendUpdateDownloadProgress(win, { status: 'launching', received, total, percent: 100, message: '下载完成，正在关闭当前程序并启动安装程序...' });
+    app.relaunch({ execPath: target, args: [] });
+    app.quit();
   } finally {
     updateDownloadInProgress = false;
   }

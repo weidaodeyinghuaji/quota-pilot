@@ -15,7 +15,9 @@ assert.match(appSource, /setUpdateReminderDismissed\(true\)/);
 assert.doesNotMatch(appSource, /window\.alert/);
 assert.match(appSource, /updateCheckState=\{updateCheckState\}/g);
 assert.match(appSource, /onCheckUpdate=\{\(\) => runUpdateCheck\(\)\}/g);
-assert.match(appSource, /onOpenUpdateWindow=\{\(\)\s*=>\s*window\.codexQuotaDesktop\?\.openUpdateWindow\?\.\(\)\}/);
+assert.match(appSource, /onOpenUpdateWindow=\{\(options\)\s*=>\s*window\.codexQuotaDesktop\?\.openUpdateWindow\?\.\(options\)\}/);
+assert.match(appSource, /if \(isDetailWindow\) return;/);
+assert.match(appSource, /!isDesktopCapsule && \(\s*<UpdateReminder/);
 assert.match(appSource, /updateAvailable=\{Boolean\(updateCheckState\.isNewer\)\}/);
 
 assert.match(settingsSource, /type SettingsTab = 'api' \| 'sync' \| 'about';/);
@@ -26,6 +28,7 @@ assert.match(settingsSource, /GITHUB_RELEASES_URL/);
 assert.match(settingsSource, /formatUpdateStatus/);
 assert.match(settingsSource, /检查更新/);
 assert.match(settingsSource, /onOpenUpdateWindow/);
+assert.match(settingsSource, /onOpenUpdateWindow\(\{\s*autoDownload:\s*true\s*\}\)/);
 assert.match(settingsSource, /updateCheckState\.isNewer/);
 assert.match(settingsSource, /update-tab-badge/);
 assert.match(settingsSource, /settings-update-notice/);

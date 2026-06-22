@@ -19,7 +19,7 @@ declare global {
       notifyUpdateReady(): void;
       dismissUpdateReminder(): void;
       openUpdateRelease(url: string): void;
-      openUpdateWindow(): void;
+      openUpdateWindow(options?: { autoDownload?: boolean }): void;
       startUpdateDownload(asset: { name?: string; url?: string; size?: number }): void;
       onUpdateDownloadProgress(callback: (payload: {
         status?: string;
@@ -28,6 +28,7 @@ declare global {
         total?: number;
         percent?: number;
       }) => void): () => void;
+      onUpdateAutoDownload(callback: () => void): () => void;
       onUpdateDismissed(callback: () => void): () => void;
       onDetailState(callback: (open: boolean) => void): () => void;
       onPopoverPlacement(callback: (placement: 'top' | 'bottom') => void): () => void;

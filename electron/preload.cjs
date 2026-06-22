@@ -37,8 +37,10 @@ contextBridge.exposeInMainWorld('codexQuotaDesktop', {
   openUpdateRelease(url) {
     ipcRenderer.send('desktop-update-open-release', url);
   },
-  openUpdateWindow() {
-    ipcRenderer.send('desktop-update-open-window');
+  openUpdateWindow(options) {
+    ipcRenderer.send('desktop-update-open-window', {
+      autoDownload: Boolean(options?.autoDownload)
+    });
   },
   startUpdateDownload(asset) {
     ipcRenderer.send('desktop-update-download', asset);
@@ -48,6 +50,12 @@ contextBridge.exposeInMainWorld('codexQuotaDesktop', {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on('desktop-update-download-progress', listener);
     return () => ipcRenderer.removeListener('desktop-update-download-progress', listener);
+  },
+  onUpdateAutoDownload(callback) {
+    if (typeof callback !== 'function') return () => {};
+    const listener = () => callback();
+    ipcRenderer.on('desktop-update-auto-download', listener);
+    return () => ipcRenderer.removeListener('desktop-update-auto-download', listener);
   },
   onUpdateDismissed(callback) {
     if (typeof callback !== 'function') return () => {};

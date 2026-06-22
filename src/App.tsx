@@ -34,6 +34,7 @@ export default function App() {
   const isSettingsWindow = urlParams.get('view') === 'settings';
   const isDetailWindow = urlParams.get('view') === 'detail';
   const isUpdateWindow = urlParams.get('view') === 'update';
+  const autoDownloadRequested = urlParams.get('download') === '1';
   const [settings, setSettings] = React.useState(() => loadAppSettings());
   const [newApiSnapshot, setNewApiSnapshot] = React.useState(null);
   const [codexStatus, setCodexStatus] = React.useState(null);
@@ -113,9 +114,9 @@ export default function App() {
   }, []);
 
   React.useEffect(() => {
-    if (isDesktopCapsule || isDetailWindow) return;
+    if (isDetailWindow) return;
     runUpdateCheck({ silent: true });
-  }, [isDesktopCapsule, isDetailWindow, runUpdateCheck]);
+  }, [isDetailWindow, runUpdateCheck]);
 
   React.useEffect(() => {
     if (!window.codexQuotaDesktop?.onUpdateDismissed) return undefined;
@@ -449,6 +450,7 @@ export default function App() {
     return (
       <UpdateWindowShell
         updateCheckState={updateCheckState}
+        autoDownloadRequested={autoDownloadRequested}
         dismissed={updateReminderDismissed}
         onDismiss={() => {
           setUpdateReminderDismissed(true);
@@ -481,7 +483,7 @@ export default function App() {
           manualSyncState={manualSyncState}
           updateCheckState={updateCheckState}
           onCheckUpdate={() => runUpdateCheck()}
-          onOpenUpdateWindow={() => window.codexQuotaDesktop?.openUpdateWindow?.()}
+          onOpenUpdateWindow={(options) => window.codexQuotaDesktop?.openUpdateWindow?.(options)}
           connectionState={connectionState}
         />
       </main>
@@ -553,31 +555,35 @@ export default function App() {
             manualSyncState={manualSyncState}
             updateCheckState={updateCheckState}
             onCheckUpdate={() => runUpdateCheck()}
-            onOpenUpdateWindow={() => window.codexQuotaDesktop?.openUpdateWindow?.()}
+            onOpenUpdateWindow={(options) => window.codexQuotaDesktop?.openUpdateWindow?.(options)}
             connectionState={connectionState}
           />
         </div>
       )}
-      <UpdateReminder
-        updateCheckState={updateCheckState}
-        dismissed={updateReminderDismissed}
-        onDismiss={() => {
-          setUpdateReminderDismissed(true);
-          window.codexQuotaDesktop?.dismissUpdateReminder?.();
-        }}
-      />
+      {!isDesktopCapsule && (
+        <UpdateReminder
+          updateCheckState={updateCheckState}
+          dismissed={updateReminderDismissed}
+          onDismiss={() => {
+            setUpdateReminderDismissed(true);
+            window.codexQuotaDesktop?.dismissUpdateReminder?.();
+          }}
+        />
+      )}
     </main>
   );
 }
 
 function UpdateWindowShell({
   updateCheckState,
+  autoDownloadRequested,
   dismissed,
   onDismiss,
   onOpenRelease,
   onDownloadUpdate
 }: {
   updateCheckState: UpdateCheckState;
+  autoDownloadRequested: boolean;
   dismissed: boolean;
   onDismiss: () => void;
   onOpenRelease: (url: string) => void;
@@ -590,6 +596,8 @@ function UpdateWindowShell({
     received: 0,
     total: 0
   });
+  const [autoDownloadRequestedState, setAutoDownloadRequested] = React.useState(autoDownloadRequested);
+  const autoDownloadStartedRef = React.useRef(false);
 
   React.useEffect(() => {
     if (updateCheckState.status === 'success' && updateCheckState.isNewer) {
@@ -612,6 +620,34 @@ function UpdateWindowShell({
       });
     });
   }, []);
+
+  React.useEffect(() => {
+    if (!window.codexQuotaDesktop?.onUpdateAutoDownload) return undefined;
+    return window.codexQuotaDesktop.onUpdateAutoDownload(() => {
+      autoDownloadStartedRef.current = false;
+      setAutoDownloadRequested(true);
+    });
+  }, []);
+
+  React.useEffect(() => {
+    if (!autoDownloadRequestedState || autoDownloadStartedRef.current) return;
+    if (updateCheckState.status !== 'success' || !updateCheckState.isNewer || !updateCheckState.installerAsset) return;
+    autoDownloadStartedRef.current = true;
+    setDownloadState({
+      status: 'starting',
+      message: '正在连接 GitHub，准备下载安装包...',
+      percent: 0,
+      received: 0,
+      total: Number(updateCheckState.installerAsset.size) || 0
+    });
+    onDownloadUpdate(updateCheckState.installerAsset);
+  }, [
+    autoDownloadRequestedState,
+    onDownloadUpdate,
+    updateCheckState.status,
+    updateCheckState.isNewer,
+    updateCheckState.installerAsset
+  ]);
 
   if (updateCheckState.status === 'loading' || updateCheckState.status === 'idle') {
     return (
@@ -710,9 +746,8 @@ function UpdateReminder({
   if (!updateCheckState.isNewer || dismissed) return null;
   const releaseUrl = updateCheckState.releaseUrl || GITHUB_RELEASES_URL;
   const installerAsset = updateCheckState.installerAsset;
-  const downloading = downloadState?.status === 'downloading';
   const downloadStarted = Boolean(downloadState?.status && downloadState.status !== 'idle');
-  const canDownload = Boolean(onDownloadUpdate && installerAsset && !downloading);
+  const canDownload = Boolean(onDownloadUpdate && installerAsset);
   const dialog = (
     <section className={`update-reminder ${standalone ? 'update-reminder-inline' : ''}`} role="dialog" aria-modal="true" aria-label="发现新版本">
       <h2>发现新版本</h2>
@@ -731,19 +766,21 @@ function UpdateReminder({
         </div>
       )}
       <div className="settings-actions update-actions">
-        {canDownload ? (
-          <button className="primary-action" type="button" onClick={() => onDownloadUpdate(installerAsset)}>
-            更新
-          </button>
-        ) : (
-          <a
-            className="primary-action update-link-button"
-            href={releaseUrl}
-            target="_blank"
-            rel="noreferrer"
-          >
-            更新
-          </a>
+        {!downloadStarted && (
+          canDownload ? (
+            <button className="primary-action" type="button" onClick={() => onDownloadUpdate(installerAsset)}>
+              更新
+            </button>
+          ) : (
+            <a
+              className="primary-action update-link-button"
+              href={releaseUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              更新
+            </a>
+          )
         )}
       </div>
     </section>

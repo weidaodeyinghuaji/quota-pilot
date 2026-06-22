@@ -23,7 +23,7 @@ interface Props {
   };
   updateCheckState: UpdateCheckState;
   onCheckUpdate: () => void;
-  onOpenUpdateWindow: () => void;
+  onOpenUpdateWindow: (options?: { autoDownload?: boolean }) => void;
   connectionState: {
     status: string;
     message: string;
@@ -266,7 +266,7 @@ function AboutUpdateSection({
 }: {
   updateCheckState: UpdateCheckState;
   onCheckUpdate: () => void;
-  onOpenUpdateWindow: () => void;
+  onOpenUpdateWindow: (options?: { autoDownload?: boolean }) => void;
 }) {
   return (
     <section className="settings-section">
@@ -305,7 +305,7 @@ function AboutUpdateSection({
           {updateCheckState.status === 'loading' ? '检查中...' : '检查更新'}
         </button>
         {updateCheckState.isNewer && (
-          <button className="primary-action" type="button" onClick={onOpenUpdateWindow}>
+          <button className="primary-action" type="button" onClick={() => onOpenUpdateWindow({ autoDownload: true })}>
             更新
           </button>
         )}

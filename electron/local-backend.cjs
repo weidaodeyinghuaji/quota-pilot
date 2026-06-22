@@ -1129,7 +1129,8 @@ function codexActivityUpdate(event, state) {
       if (containsPlanChoiceSignal(payload)) return activityUpdate('waiting_for_user', false, true, { needsHumanAttention: true });
       return state.isInsideTurn ? activityUpdate('thinking', true, state.waitingForPlanChoice) : null;
     }
-    if (['patch_apply_begin', 'patch_apply_end'].includes(payloadType)) return activityUpdate('executing', true, false, { clearsFinalAnswer: true });
+    if (payloadType === 'patch_apply_begin') return activityUpdate('executing', true, false, { clearsFinalAnswer: true });
+    if (payloadType === 'patch_apply_end') return activityUpdate('thinking', true, false);
     if (payloadType === 'agent_message_delta') return state.isInsideTurn ? activityUpdate('thinking', true, state.waitingForPlanChoice) : null;
     if (payloadType === 'token_count') return null;
     return payloadType && state.isInsideTurn ? activityUpdate('thinking', true, state.waitingForPlanChoice) : null;
@@ -1143,8 +1144,8 @@ function codexActivityUpdate(event, state) {
         clearsFinalAnswer: true
       });
     }
-    if (['function_call_output', 'custom_tool_call_output', 'custom_tool_call', 'web_search_call'].includes(payloadType)) {
-      return activityUpdate('executing', true, false, { clearsFinalAnswer: true });
+    if (['function_call_output', 'custom_tool_call_output'].includes(payloadType)) {
+      return activityUpdate('thinking', true, false);
     }
     if (payloadType === 'reasoning') return state.isInsideTurn ? activityUpdate('thinking', true, state.waitingForPlanChoice) : null;
     if (payloadType === 'message') {

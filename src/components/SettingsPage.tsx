@@ -81,7 +81,7 @@ export default function SettingsPage({
           <TabButton active={activeTab === 'sync'} onClick={() => setActiveTab('sync')}>
             同步
           </TabButton>
-          <TabButton active={activeTab === 'about'} onClick={() => setActiveTab('about')}>
+          <TabButton active={activeTab === 'about'} badge={Boolean(updateCheckState.isNewer)} onClick={() => setActiveTab('about')}>
             关于/更新
           </TabButton>
         </nav>
@@ -271,6 +271,12 @@ function AboutUpdateSection({
   return (
     <section className="settings-section">
       <h2>关于/更新</h2>
+      {updateCheckState.isNewer && (
+        <div className="settings-update-notice" role="status">
+          <span className="settings-update-notice-icon" aria-hidden="true">↑</span>
+          <span>发现新版本 {updateCheckState.latestTagName}，可以立即更新。</span>
+        </div>
+      )}
       <dl>
         <dt>当前版本</dt>
         <dd>{updateCheckState.currentVersion}</dd>
@@ -433,8 +439,23 @@ function ProviderEditor({
   );
 }
 
-function TabButton({ active, children, onClick }: { active: boolean; children: React.ReactNode; onClick: () => void }) {
-  return <button className={active ? 'is-active' : ''} type="button" onClick={onClick}>{children}</button>;
+function TabButton({
+  active,
+  badge = false,
+  children,
+  onClick
+}: {
+  active: boolean;
+  badge?: boolean;
+  children: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button className={active ? 'is-active' : ''} type="button" onClick={onClick}>
+      {children}
+      {badge && <span className="update-tab-badge" aria-label="发现新版本" />}
+    </button>
+  );
 }
 
 function providerSummary(provider: NewApiManagedProvider) {

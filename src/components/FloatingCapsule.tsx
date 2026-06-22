@@ -6,10 +6,11 @@ interface Props {
   snapshot: ProviderSnapshot | null;
   activity?: ProviderSnapshot['activity'];
   expanded?: boolean;
+  updateAvailable?: boolean;
   onClick?: () => void;
 }
 
-export default function FloatingCapsule({ snapshot, activity, expanded = false, onClick }: Props) {
+export default function FloatingCapsule({ snapshot, activity, expanded = false, updateAvailable = false, onClick }: Props) {
   const display = getCapsuleDisplay(snapshot);
   const signal = getSignalState(activity ?? snapshot?.activity);
 
@@ -32,6 +33,11 @@ export default function FloatingCapsule({ snapshot, activity, expanded = false, 
         </div>
         <span>{display.meta || display.subtitle}</span>
       </div>
+      {updateAvailable && (
+        <span className="capsule-update-badge" title="发现新版本" aria-label="发现新版本">
+          ↑
+        </span>
+      )}
     </button>
   );
 }

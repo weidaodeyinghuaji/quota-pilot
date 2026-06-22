@@ -208,8 +208,9 @@ async function openSettingsWindow() {
   await settingsWindow.loadURL(`${APP_URL}?view=settings`);
 }
 
-async function createUpdateWindow() {
-  if (updateReminderDismissed) return;
+async function createUpdateWindow(options = {}) {
+  const force = options.force === true;
+  if (updateReminderDismissed && !force) return;
   if (updateWindow && !updateWindow.isDestroyed()) return;
 
   updateWindow = new BrowserWindow({
@@ -402,7 +403,7 @@ ipcMain.on('desktop-update-ready', (event) => {
 });
 
 ipcMain.on('desktop-update-open-window', () => {
-  createUpdateWindow()
+  createUpdateWindow({ force: true })
     .then(() => {
       if (updateWindow && !updateWindow.isDestroyed()) {
         updateWindow.show();

@@ -211,6 +211,25 @@ body:has(.detail-window-shell) {
   cursor: pointer;
 }
 
+.capsule-update-badge {
+  position: absolute;
+  top: -5px;
+  right: 10px;
+  min-width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.36);
+  border-radius: 999px;
+  color: #fff7ed;
+  background: linear-gradient(180deg, #f97316, #ea580c);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.18), 0 6px 16px rgba(17, 24, 39, 0.22);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+}
+
 .floating-capsule:hover {
   border-color: rgba(255, 255, 255, 0.22);
   background: linear-gradient(180deg, rgba(45, 53, 64, 0.96), rgba(27, 32, 40, 0.96));
@@ -608,6 +627,7 @@ dd {
 }
 
 .settings-tabs button {
+  position: relative;
   height: 32px;
   border: 0;
   border-radius: 6px;
@@ -619,6 +639,17 @@ dd {
   cursor: pointer;
 }
 
+.update-tab-badge {
+  position: absolute;
+  top: 7px;
+  right: 9px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.18);
+}
+
 .settings-tabs button.is-active {
   color: #0f172a;
   background: #ffffff;
@@ -627,6 +658,33 @@ dd {
 
 .settings-section {
   align-content: start;
+}
+
+.settings-update-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  border: 1px solid rgba(249, 115, 22, 0.28);
+  border-radius: 8px;
+  padding: 9px 10px;
+  color: #9a3412;
+  background: #fff7ed;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.settings-update-notice-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #ffffff;
+  background: #f97316;
+  font-size: 11px;
+  font-weight: 800;
+  flex: 0 0 auto;
 }
 
 .settings-section.provider-manager {

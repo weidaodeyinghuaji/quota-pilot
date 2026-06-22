@@ -516,6 +516,7 @@ export default function App() {
             <FloatingCapsule
               activity={codexStatus?.activity}
               expanded={detailOpen}
+              updateAvailable={Boolean(updateCheckState.isNewer)}
               snapshot={activeSnapshot}
             />
             {detailOpen && !isDesktopCapsule && (
@@ -632,7 +633,16 @@ function UpdateWindowShell({
         standalone
         onDismiss={onDismiss}
         onOpenRelease={onOpenRelease}
-        onDownloadUpdate={onDownloadUpdate}
+        onDownloadUpdate={(asset) => {
+          setDownloadState({
+            status: 'starting',
+            message: '正在连接 GitHub，准备下载安装包...',
+            percent: 0,
+            received: 0,
+            total: Number(asset.size) || 0
+          });
+          onDownloadUpdate(asset);
+        }}
       />
     </main>
   );
@@ -734,11 +744,6 @@ function UpdateReminder({
           >
             更新
           </a>
-        )}
-        {!downloadStarted && (
-          <button className="secondary-action" type="button" onClick={onDismiss}>
-            本次运行不再提醒
-          </button>
         )}
       </div>
     </section>

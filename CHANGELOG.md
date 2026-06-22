@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.8
+
+- 优化更新入口：设置页检测到新版本后，点击“更新”会强制打开更新窗口，不再受启动提醒关闭状态影响。
+- 精简更新弹窗：移除“本次运行不再提醒”按钮，关闭窗口即可结束本次弹窗打扰。
+- 改进下载反馈：点击更新后会立即显示“正在连接 GitHub”，避免网络连接阶段看起来像没有反应。
+- 增加持续更新提示：设置页“关于/更新”标签会显示更新小圆点，胶囊右上角也会显示轻量更新徽标。
+- 修正 Codex 活动灯：工具调用结束、补丁应用结束后切回“思考中”黄灯，减少红灯滞留，更贴近 Codex 内部状态。
+- 补充更新入口、更新徽标、下载反馈和活动状态映射的回归测试。
+
 ## 0.1.7
 
 - Fixed Codex activity lights so normal thinking/commentary text no longer keeps the red executing light on; only real tool and command activity is treated as executing.

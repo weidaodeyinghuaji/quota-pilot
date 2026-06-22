@@ -76,6 +76,11 @@ export interface UpdateCheckState {
   currentVersion: string;
   latestTagName?: string;
   releaseUrl?: string;
+  installerAsset?: {
+    name: string;
+    url: string;
+    size?: number;
+  };
   isNewer?: boolean;
   checkedAt?: string;
 }

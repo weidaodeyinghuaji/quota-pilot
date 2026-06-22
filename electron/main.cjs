@@ -1,4 +1,6 @@
 const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, screen, shell } = require('electron');
+const fs = require('node:fs');
+const fsp = require('node:fs/promises');
 const http = require('node:http');
 const path = require('node:path');
 const { startLocalBackend, stopLocalBackend } = require('./local-backend.cjs');
@@ -27,6 +29,7 @@ const TEXT = {
 let capsuleWindow = null;
 let detailWindow = null;
 let settingsWindow = null;
+let updateWindow = null;
 let tray = null;
 let ownsBackend = false;
 let dragState = null;
@@ -37,8 +40,11 @@ let savedCapsulePosition = null;
 let detailLayout = { ...DEFAULT_DETAIL_SIZE };
 let detailLayoutReady = false;
 let detailContentReady = false;
-let capsuleRestoreTimer = null;
 let capsuleUserHidden = false;
+let capsuleMouseIgnored = false;
+let updateReminderDismissed = false;
+let capsuleRecoveryTimer = null;
+let updateDownloadInProgress = false;
 let lastWindowLayout = {
   placement: 'bottom',
   offsetX: 0,
@@ -60,9 +66,9 @@ async function createApp() {
   await ensureBackend();
   createTray();
   await createCapsuleWindow();
-  screen.on('display-metrics-changed', restoreCapsuleAfterDisplayChange);
-  screen.on('display-added', restoreCapsuleAfterDisplayChange);
-  screen.on('display-removed', restoreCapsuleAfterDisplayChange);
+  setTimeout(() => {
+    createUpdateWindow().catch(() => {});
+  }, 900);
 }
 
 async function createCapsuleWindow() {
@@ -98,11 +104,18 @@ async function createCapsuleWindow() {
   capsuleWindow.once('ready-to-show', () => capsuleWindow.showInactive());
   capsuleWindow.on('closed', () => {
     capsuleWindow = null;
+    capsuleMouseIgnored = false;
+  });
+  capsuleWindow.webContents.on('render-process-gone', () => {
+    recoverCapsuleWindow();
+  });
+  capsuleWindow.webContents.on('unresponsive', () => {
+    recoverCapsuleWindow();
   });
   capsuleWindow.setMenu(null);
   installWindowHandlers(capsuleWindow);
   await capsuleWindow.loadURL(`${APP_URL}?desktop=1`);
-  startCapsuleVisibilityGuard();
+  setCapsuleMousePassthrough(true);
 }
 
 async function ensureDetailWindow() {
@@ -195,6 +208,40 @@ async function openSettingsWindow() {
   await settingsWindow.loadURL(`${APP_URL}?view=settings`);
 }
 
+async function createUpdateWindow() {
+  if (updateReminderDismissed) return;
+  if (updateWindow && !updateWindow.isDestroyed()) return;
+
+  updateWindow = new BrowserWindow({
+    width: 460,
+    height: 220,
+    minWidth: 420,
+    minHeight: 190,
+    show: false,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    autoHideMenuBar: true,
+    skipTaskbar: false,
+    title: 'Codex Quota Glance 更新',
+    backgroundColor: '#f6f8fb',
+    icon: ICON_PATH,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      preload: path.join(__dirname, 'preload.cjs')
+    }
+  });
+
+  updateWindow.on('closed', () => {
+    updateWindow = null;
+  });
+  updateWindow.setMenu(null);
+  installWindowHandlers(updateWindow);
+  await updateWindow.loadURL(`${APP_URL}?view=update`);
+}
+
 function createTray() {
   tray = new Tray(createTrayImage());
   tray.setToolTip('Codex Quota Glance');
@@ -254,6 +301,7 @@ function installWindowHandlers(win) {
 ipcMain.on('desktop-drag-start', (event, point) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win || win !== capsuleWindow) return;
+  setCapsuleMousePassthrough(false);
   const capsule = getCurrentCapsuleScreenBounds();
   dragState = {
     mouseX: Number(point?.screenX) || 0,
@@ -282,6 +330,16 @@ ipcMain.on('desktop-drag-end', (event) => {
     if (detailOpen) positionDetailWindow();
   }
   dragState = null;
+});
+
+ipcMain.on('desktop-hit-test-regions', (event, payload) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win !== capsuleWindow) return;
+  if (dragState) {
+    setCapsuleMousePassthrough(false);
+    return;
+  }
+  setCapsuleMousePassthrough(!Boolean(payload?.interactive));
 });
 
 ipcMain.on('desktop-detail-open', (event, open) => {
@@ -334,6 +392,44 @@ ipcMain.on('desktop-saved-position', (event, position) => {
     resizeCapsuleWindow();
     if (detailOpen) positionDetailWindow();
   }
+});
+
+ipcMain.on('desktop-update-ready', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win !== updateWindow || updateReminderDismissed) return;
+  updateWindow.show();
+  updateWindow.focus();
+});
+
+ipcMain.on('desktop-update-dismiss', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win && updateWindow && win !== updateWindow) return;
+  updateReminderDismissed = true;
+  BrowserWindow.getAllWindows().forEach((window) => {
+    window.webContents.send('desktop-update-dismissed');
+  });
+  if (updateWindow && !updateWindow.isDestroyed()) {
+    updateWindow.close();
+  }
+});
+
+ipcMain.on('desktop-update-open-release', (event, url) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win && updateWindow && win !== updateWindow) return;
+  if (typeof url === 'string' && /^https:\/\/github\.com\/akitten-cn\/codex-quota-glance\/releases/.test(url)) {
+    shell.openExternal(url);
+  }
+});
+
+ipcMain.on('desktop-update-download', (event, asset) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win && updateWindow && win !== updateWindow) return;
+  downloadUpdateInstaller(asset, win || updateWindow).catch((error) => {
+    sendUpdateDownloadProgress(win || updateWindow, {
+      status: 'error',
+      message: error instanceof Error ? error.message : String(error || '下载失败')
+    });
+  });
 });
 
 function resizeCapsuleWindow() {
@@ -431,41 +527,6 @@ function positionDetailWindow() {
   detailWindow.webContents.send('desktop-popover-placement', placement);
 }
 
-function startCapsuleVisibilityGuard() {
-  if (capsuleRestoreTimer) clearInterval(capsuleRestoreTimer);
-  capsuleRestoreTimer = setInterval(() => {
-    if (!capsuleWindow || capsuleWindow.isDestroyed()) return;
-    if (isDisplayFullscreenForCapsule()) return;
-    if (!capsuleWindow.isVisible()) {
-      if (!capsuleUserHidden) capsuleWindow.showInactive();
-      return;
-    }
-    keepFloatingWindowOnTop(capsuleWindow);
-    if (detailOpen && detailWindow && !detailWindow.isDestroyed()) {
-      positionDetailWindow();
-      keepFloatingWindowOnTop(detailWindow);
-    }
-  }, 2000);
-}
-
-function restoreCapsuleAfterDisplayChange() {
-  setTimeout(() => {
-    if (!capsuleWindow || capsuleWindow.isDestroyed() || capsuleUserHidden) return;
-    if (isDisplayFullscreenForCapsule()) return;
-    if (!capsuleWindow.isVisible()) capsuleWindow.showInactive();
-    resizeCapsuleWindow();
-    keepFloatingWindowOnTop(capsuleWindow);
-    if (detailOpen) positionDetailWindow();
-  }, 300);
-}
-
-function isDisplayFullscreenForCapsule() {
-  if (!capsuleWindow || capsuleWindow.isDestroyed()) return false;
-  const bounds = capsuleWindow.getBounds();
-  const display = screen.getDisplayMatching(bounds);
-  return Boolean(display?.fullscreen);
-}
-
 function getAnchoredCapsuleBounds(current, capsuleSize, workArea) {
   const base = capsuleAnchor || (
     savedCapsulePosition
@@ -521,6 +582,96 @@ function keepFloatingWindowOnTop(win = capsuleWindow) {
   if (!win || win.isDestroyed()) return;
   win.setAlwaysOnTop(true, 'floating');
   win.moveTop();
+}
+
+function setCapsuleMousePassthrough(ignore) {
+  if (!capsuleWindow || capsuleWindow.isDestroyed()) return;
+  const next = Boolean(ignore);
+  if (capsuleMouseIgnored === next) return;
+  capsuleMouseIgnored = next;
+  if (next) {
+    capsuleWindow.setIgnoreMouseEvents(true, { forward: true });
+  } else {
+    capsuleWindow.setIgnoreMouseEvents(false);
+  }
+}
+
+function recoverCapsuleWindow() {
+  if (capsuleRecoveryTimer || capsuleUserHidden) return;
+  capsuleRecoveryTimer = setTimeout(() => {
+    capsuleRecoveryTimer = null;
+    if (capsuleUserHidden) return;
+    if (capsuleWindow && !capsuleWindow.isDestroyed()) {
+      capsuleWindow.reload();
+      return;
+    }
+    createCapsuleWindow().catch(() => {});
+  }, 250);
+}
+
+async function downloadUpdateInstaller(asset, win) {
+  if (updateDownloadInProgress) return;
+  const name = String(asset?.name || '');
+  const url = String(asset?.url || '');
+  if (!isTrustedUpdateAsset(name, url)) {
+    throw new Error('没有找到可信的 Windows 安装包');
+  }
+  updateDownloadInProgress = true;
+  try {
+    const downloadsDir = path.join(app.getPath('temp'), 'CodexQuotaGlance', 'updates');
+    await fsp.mkdir(downloadsDir, { recursive: true });
+    const target = path.join(downloadsDir, safeFileName(name));
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'CodexQuotaGlance/0.1'
+      }
+    });
+    if (!response.ok || !response.body) {
+      throw new Error(`下载安装包失败：HTTP ${response.status || 'unknown'}`);
+    }
+    const total = Number(response.headers.get('content-length')) || Number(asset?.size) || 0;
+    const reader = response.body.getReader();
+    const stream = fs.createWriteStream(target);
+    let received = 0;
+    sendUpdateDownloadProgress(win, { status: 'downloading', received, total, percent: 0, message: '正在下载安装包...' });
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = Buffer.from(value);
+      received += chunk.length;
+      stream.write(chunk);
+      const percent = total > 0 ? Math.min(100, Math.round((received / total) * 100)) : 0;
+      sendUpdateDownloadProgress(win, { status: 'downloading', received, total, percent, message: '正在下载安装包...' });
+    }
+    await new Promise((resolve, reject) => {
+      stream.end((error) => error ? reject(error) : resolve());
+    });
+    sendUpdateDownloadProgress(win, { status: 'launching', received, total, percent: 100, message: '下载完成，正在启动安装程序...' });
+    const openError = await shell.openPath(target);
+    if (openError) throw new Error(openError);
+    sendUpdateDownloadProgress(win, { status: 'launched', received, total, percent: 100, message: '安装程序已启动，请按提示完成安装。' });
+  } finally {
+    updateDownloadInProgress = false;
+  }
+}
+
+function sendUpdateDownloadProgress(win, payload) {
+  const targets = new Set([win, updateWindow].filter((window) => window && !window.isDestroyed()));
+  for (const target of targets) {
+    target.webContents.send('desktop-update-download-progress', payload);
+  }
+}
+
+function isTrustedUpdateAsset(name, url) {
+  const lowerName = String(name || '').toLowerCase();
+  return lowerName.endsWith('.exe') &&
+    lowerName.includes('win') &&
+    !lowerName.includes('portable') &&
+    /^https:\/\/github\.com\/akitten-cn\/codex-quota-glance\/releases\/download\//.test(String(url || ''));
+}
+
+function safeFileName(name) {
+  return String(name || 'CodexQuotaGlance-update.exe').replace(/[<>:"/\\|?*\x00-\x1F]/g, '_');
 }
 
 function setCapsuleWindowBounds(bounds) {
@@ -635,12 +786,9 @@ app.on('window-all-closed', (event) => {
 });
 
 app.on('before-quit', async () => {
-  screen.off('display-metrics-changed', restoreCapsuleAfterDisplayChange);
-  screen.off('display-added', restoreCapsuleAfterDisplayChange);
-  screen.off('display-removed', restoreCapsuleAfterDisplayChange);
-  if (capsuleRestoreTimer) {
-    clearInterval(capsuleRestoreTimer);
-    capsuleRestoreTimer = null;
+  if (capsuleRecoveryTimer) {
+    clearTimeout(capsuleRecoveryTimer);
+    capsuleRecoveryTimer = null;
   }
   if (ownsBackend) {
     await stopLocalBackend();

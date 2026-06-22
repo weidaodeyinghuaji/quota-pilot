@@ -33,6 +33,7 @@ export default function App() {
   const isDesktopCapsule = urlParams.get('desktop') === '1';
   const isSettingsWindow = urlParams.get('view') === 'settings';
   const isDetailWindow = urlParams.get('view') === 'detail';
+  const isUpdateWindow = urlParams.get('view') === 'update';
   const [settings, setSettings] = React.useState(() => loadAppSettings());
   const [newApiSnapshot, setNewApiSnapshot] = React.useState(null);
   const [codexStatus, setCodexStatus] = React.useState(null);
@@ -115,6 +116,13 @@ export default function App() {
     if (isDesktopCapsule || isDetailWindow) return;
     runUpdateCheck({ silent: true });
   }, [isDesktopCapsule, isDetailWindow, runUpdateCheck]);
+
+  React.useEffect(() => {
+    if (!window.codexQuotaDesktop?.onUpdateDismissed) return undefined;
+    return window.codexQuotaDesktop.onUpdateDismissed(() => {
+      setUpdateReminderDismissed(true);
+    });
+  }, []);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return undefined;
@@ -437,33 +445,45 @@ export default function App() {
     });
   }, [settings.newApi]);
 
+  if (isUpdateWindow) {
+    return (
+      <UpdateWindowShell
+        updateCheckState={updateCheckState}
+        dismissed={updateReminderDismissed}
+        onDismiss={() => {
+          setUpdateReminderDismissed(true);
+          window.codexQuotaDesktop?.dismissUpdateReminder?.();
+        }}
+        onOpenRelease={(url) => {
+          window.codexQuotaDesktop?.openUpdateRelease?.(url);
+        }}
+        onDownloadUpdate={(asset) => {
+          window.codexQuotaDesktop?.startUpdateDownload?.(asset);
+        }}
+      />
+    );
+  }
+
   if (isSettingsWindow) {
     return (
-      <>
-        <main className="settings-window-shell">
-          <SettingsPage
-            settings={settings}
-            onNewApiChange={(key, value) => setSettings((current) => updateNewApiSettings(current, key, value))}
-            onPricingChange={(key, value) => setSettings((current) => updatePricingProfile(current, key, value))}
-            onProviderSave={(provider) => setSettings((current) => upsertNewApiProvider(current, provider))}
-            onProviderSelect={(providerId) => setSettings((current) => selectNewApiProvider(current, providerId))}
-            onProviderDelete={(providerId) => setSettings((current) => deleteNewApiProvider(current, providerId))}
-            onProviderDuplicate={(providerId) => setSettings((current) => duplicateNewApiProvider(current, providerId))}
-            createProviderDraft={() => createNewApiProviderDraft(settings)}
-            onTestConnection={handleTestConnection}
-            onManualSync={() => runPlatformSync({ manual: true })}
-            manualSyncState={manualSyncState}
-            updateCheckState={updateCheckState}
-            onCheckUpdate={() => runUpdateCheck()}
-            connectionState={connectionState}
-          />
-        </main>
-        <UpdateReminder
+      <main className="settings-window-shell">
+        <SettingsPage
+          settings={settings}
+          onNewApiChange={(key, value) => setSettings((current) => updateNewApiSettings(current, key, value))}
+          onPricingChange={(key, value) => setSettings((current) => updatePricingProfile(current, key, value))}
+          onProviderSave={(provider) => setSettings((current) => upsertNewApiProvider(current, provider))}
+          onProviderSelect={(providerId) => setSettings((current) => selectNewApiProvider(current, providerId))}
+          onProviderDelete={(providerId) => setSettings((current) => deleteNewApiProvider(current, providerId))}
+          onProviderDuplicate={(providerId) => setSettings((current) => duplicateNewApiProvider(current, providerId))}
+          createProviderDraft={() => createNewApiProviderDraft(settings)}
+          onTestConnection={handleTestConnection}
+          onManualSync={() => runPlatformSync({ manual: true })}
+          manualSyncState={manualSyncState}
           updateCheckState={updateCheckState}
-          dismissed={updateReminderDismissed}
-          onDismiss={() => setUpdateReminderDismissed(true)}
+          onCheckUpdate={() => runUpdateCheck()}
+          connectionState={connectionState}
         />
-      </>
+      </main>
     );
   }
 
@@ -538,7 +558,79 @@ export default function App() {
       <UpdateReminder
         updateCheckState={updateCheckState}
         dismissed={updateReminderDismissed}
-        onDismiss={() => setUpdateReminderDismissed(true)}
+        onDismiss={() => {
+          setUpdateReminderDismissed(true);
+          window.codexQuotaDesktop?.dismissUpdateReminder?.();
+        }}
+      />
+    </main>
+  );
+}
+
+function UpdateWindowShell({
+  updateCheckState,
+  dismissed,
+  onDismiss,
+  onOpenRelease,
+  onDownloadUpdate
+}: {
+  updateCheckState: UpdateCheckState;
+  dismissed: boolean;
+  onDismiss: () => void;
+  onOpenRelease: (url: string) => void;
+  onDownloadUpdate: (asset: NonNullable<UpdateCheckState['installerAsset']>) => void;
+}) {
+  const [downloadState, setDownloadState] = React.useState({
+    status: 'idle',
+    message: '',
+    percent: 0,
+    received: 0,
+    total: 0
+  });
+
+  React.useEffect(() => {
+    if (updateCheckState.status === 'success' && updateCheckState.isNewer) {
+      window.codexQuotaDesktop?.notifyUpdateReady?.();
+    }
+    if (updateCheckState.status === 'success' && !updateCheckState.isNewer) {
+      window.codexQuotaDesktop?.dismissUpdateReminder?.();
+    }
+  }, [updateCheckState.status, updateCheckState.isNewer]);
+
+  React.useEffect(() => {
+    if (!window.codexQuotaDesktop?.onUpdateDownloadProgress) return undefined;
+    return window.codexQuotaDesktop.onUpdateDownloadProgress((payload) => {
+      setDownloadState({
+        status: payload.status || 'idle',
+        message: payload.message || '',
+        percent: Number(payload.percent) || 0,
+        received: Number(payload.received) || 0,
+        total: Number(payload.total) || 0
+      });
+    });
+  }, []);
+
+  if (updateCheckState.status === 'loading' || updateCheckState.status === 'idle') {
+    return (
+      <main className="update-window-shell">
+        <section className="update-reminder update-reminder-inline" aria-label="检查更新">
+          <h2>正在检查更新</h2>
+          <p>启动后自动检查 Codex Quota Glance 是否有新版本。</p>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="update-window-shell">
+      <UpdateReminder
+        updateCheckState={updateCheckState}
+        dismissed={dismissed}
+        downloadState={downloadState}
+        standalone
+        onDismiss={onDismiss}
+        onOpenRelease={onOpenRelease}
+        onDownloadUpdate={onDownloadUpdate}
       />
     </main>
   );
@@ -583,36 +675,82 @@ function DetailWindowShell({ children }: { children: React.ReactNode }) {
 function UpdateReminder({
   updateCheckState,
   dismissed,
-  onDismiss
+  onDismiss,
+  onOpenRelease,
+  onDownloadUpdate,
+  downloadState,
+  standalone = false
 }: {
   updateCheckState: UpdateCheckState;
   dismissed: boolean;
   onDismiss: () => void;
+  onOpenRelease?: (url: string) => void;
+  onDownloadUpdate?: (asset: NonNullable<UpdateCheckState['installerAsset']>) => void;
+  downloadState?: {
+    status: string;
+    message: string;
+    percent: number;
+    received: number;
+    total: number;
+  };
+  standalone?: boolean;
 }) {
   if (!updateCheckState.isNewer || dismissed) return null;
-  return (
-    <div className="update-reminder-backdrop" role="presentation" data-no-drag="true">
-      <section className="update-reminder" role="dialog" aria-modal="true" aria-label="发现新版本">
-        <h2>发现新版本</h2>
-        <p>
-          当前版本 {updateCheckState.currentVersion}，最新版本 {updateCheckState.latestTagName}。
-        </p>
-        <div className="settings-actions">
+  const releaseUrl = updateCheckState.releaseUrl || GITHUB_RELEASES_URL;
+  const installerAsset = updateCheckState.installerAsset;
+  const downloading = downloadState?.status === 'downloading';
+  const canDownload = Boolean(onDownloadUpdate && installerAsset && !downloading);
+  const dialog = (
+    <section className={`update-reminder ${standalone ? 'update-reminder-inline' : ''}`} role="dialog" aria-modal="true" aria-label="发现新版本">
+      <h2>发现新版本</h2>
+      <p>
+        当前版本 {updateCheckState.currentVersion}，最新版本 {updateCheckState.latestTagName}。
+      </p>
+      {downloadState?.message && (
+        <div className="update-download-status">
+          <span>{downloadState.message}</span>
+          {(downloadState.status === 'downloading' || downloadState.status === 'launching' || downloadState.status === 'launched') && (
+            <progress max="100" value={downloadState.percent} />
+          )}
+          {downloadState.total > 0 && (
+            <small>{formatBytes(downloadState.received)} / {formatBytes(downloadState.total)}</small>
+          )}
+        </div>
+      )}
+      <div className="settings-actions update-actions">
+        {canDownload ? (
+          <button className="primary-action" type="button" onClick={() => onDownloadUpdate(installerAsset)}>
+            更新
+          </button>
+        ) : (
           <a
             className="primary-action update-link-button"
-            href={updateCheckState.releaseUrl || GITHUB_RELEASES_URL}
+            href={releaseUrl}
             target="_blank"
             rel="noreferrer"
           >
-            打开发布页
+            更新
           </a>
-          <button className="secondary-action" type="button" onClick={onDismiss}>
-            本次运行不再提醒
-          </button>
-        </div>
-      </section>
+        )}
+        <button className="secondary-action" type="button" onClick={onDismiss}>
+          本次运行不再提醒
+        </button>
+      </div>
+    </section>
+  );
+  if (standalone) return dialog;
+  return (
+    <div className="update-reminder-backdrop" role="presentation" data-no-drag="true">
+      {dialog}
     </div>
   );
+}
+
+function formatBytes(value: number) {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function enrichSpendEventWithEstimate(event: any, pricingProfile: any) {

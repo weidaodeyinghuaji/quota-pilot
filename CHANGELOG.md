@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.6
+
+- Removed the aggressive desktop capsule visibility guard that could bring hidden windows back incorrectly or leave the capsule missing after long runs.
+- Added desktop capsule renderer recovery and transparent-window click-through support so empty transparent regions can pass clicks to the app underneath.
+- Split Codex activity into clearer thinking, executing, waiting-for-user, and finished states, and changed the traffic lights to a breathing signal effect.
+- Moved update reminders into a standalone startup window with per-run dismissal shared through the Electron main process.
+- Added Windows installer download support from GitHub Release assets, including download progress and automatic installer launch after download.
+- Added regression coverage for capsule stability, activity-state mapping, update-window behavior, release asset selection, and the new desktop shell IPC.
+
 ## 0.1.5
 
 - Fixed official-login quota display so the floating capsule prefers the live Codex rate-limit response instead of stale quota values embedded in local token logs.

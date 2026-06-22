@@ -25,6 +25,33 @@ contextBridge.exposeInMainWorld('codexQuotaDesktop', {
   setSavedPosition(position) {
     ipcRenderer.send('desktop-saved-position', position);
   },
+  updateHitTestRegions(payload) {
+    ipcRenderer.send('desktop-hit-test-regions', payload);
+  },
+  notifyUpdateReady() {
+    ipcRenderer.send('desktop-update-ready');
+  },
+  dismissUpdateReminder() {
+    ipcRenderer.send('desktop-update-dismiss');
+  },
+  openUpdateRelease(url) {
+    ipcRenderer.send('desktop-update-open-release', url);
+  },
+  startUpdateDownload(asset) {
+    ipcRenderer.send('desktop-update-download', asset);
+  },
+  onUpdateDownloadProgress(callback) {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on('desktop-update-download-progress', listener);
+    return () => ipcRenderer.removeListener('desktop-update-download-progress', listener);
+  },
+  onUpdateDismissed(callback) {
+    if (typeof callback !== 'function') return () => {};
+    const listener = () => callback();
+    ipcRenderer.on('desktop-update-dismissed', listener);
+    return () => ipcRenderer.removeListener('desktop-update-dismissed', listener);
+  },
   onDetailState(callback) {
     if (typeof callback !== 'function') return () => {};
     const listener = (_event, open) => callback(Boolean(open));

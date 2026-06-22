@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.1.5';
+export const APP_VERSION = '0.1.6';
 export const GITHUB_REPOSITORY_URL = 'https://github.com/akitten-cn/codex-quota-glance';
 export const GITHUB_RELEASES_URL = `${GITHUB_REPOSITORY_URL}/releases`;
 export const GITHUB_LATEST_RELEASE_API_URL =
@@ -47,6 +47,26 @@ export function compareVersions(currentVersion, latestTagName) {
   };
 }
 
+export function selectWindowsInstallerAsset(assets) {
+  if (!Array.isArray(assets)) return undefined;
+  const normalized = assets
+    .map((asset) => ({
+      name: String(asset?.name || ''),
+      url: String(asset?.browser_download_url || asset?.url || ''),
+      size: Number.isFinite(Number(asset?.size)) ? Number(asset.size) : undefined
+    }))
+    .filter((asset) => {
+      const name = asset.name.toLowerCase();
+      return asset.name &&
+        asset.url &&
+        name.endsWith('.exe') &&
+        name.includes('win') &&
+        !name.includes('portable') &&
+        !name.includes('blockmap');
+    });
+  return normalized.find((asset) => /win-x64\.exe$/i.test(asset.name)) || normalized[0];
+}
+
 export async function checkLatestRelease(options = {}) {
   const {
     currentVersion = APP_VERSION,
@@ -69,6 +89,7 @@ export async function checkLatestRelease(options = {}) {
     currentVersion,
     latestTagName,
     releaseUrl: release.html_url || `${GITHUB_RELEASES_URL}/latest`,
+    installerAsset: selectWindowsInstallerAsset(release.assets),
     isNewer: comparison.isNewer,
     comparable: comparison.comparable,
     checkedAt: new Date().toISOString()

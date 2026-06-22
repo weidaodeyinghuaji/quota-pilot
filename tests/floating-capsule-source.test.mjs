@@ -8,9 +8,11 @@ assert.match(source, /getSignalState\(activity \?\? snapshot\?\.activity\)/);
 assert.match(source, /aria-label=\{signal\.label\}/);
 assert.doesNotMatch(source, /aria-hidden="true"/);
 assert.match(source, /status === 'answering'/);
+assert.match(source, /status === 'thinking'/);
+assert.match(source, /status === 'executing'/);
 assert.match(source, /status === 'waiting_for_user'/);
 assert.match(source, /status === 'auto_reviewing'/);
 assert.match(source, /status === 'finished'/);
-assert.match(source, /is-blinking/);
+assert.match(source, /is-breathing/);
 
 console.log('floating capsule source tests passed');

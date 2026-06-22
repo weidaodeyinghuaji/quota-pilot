@@ -15,6 +15,19 @@ declare global {
       }): void;
       updateDetailLayout(layout: { width: number; height: number }): void;
       setSavedPosition(position: { x: number; y: number }): void;
+      updateHitTestRegions(payload: { interactive: boolean }): void;
+      notifyUpdateReady(): void;
+      dismissUpdateReminder(): void;
+      openUpdateRelease(url: string): void;
+      startUpdateDownload(asset: { name?: string; url?: string; size?: number }): void;
+      onUpdateDownloadProgress(callback: (payload: {
+        status?: string;
+        message?: string;
+        received?: number;
+        total?: number;
+        percent?: number;
+      }) => void): () => void;
+      onUpdateDismissed(callback: () => void): () => void;
       onDetailState(callback: (open: boolean) => void): () => void;
       onPopoverPlacement(callback: (placement: 'top' | 'bottom') => void): () => void;
       onWindowLayout(callback: (layout: {

@@ -21,9 +21,9 @@ export default function FloatingCapsule({ snapshot, activity, expanded = false, 
       onClick={onClick}
     >
       <div className="traffic-lights" aria-label={signal.label} title={signal.label}>
-        <span className={`traffic-light traffic-close ${signal.red ? 'is-active' : ''}`} />
-        <span className={`traffic-light traffic-minimize ${signal.yellow ? 'is-active' : ''} ${signal.blink ? 'is-blinking' : ''}`} />
-        <span className={`traffic-light traffic-ok ${signal.green ? 'is-active' : ''}`} />
+        <span className={`traffic-light traffic-close ${signal.red ? 'is-active' : ''} ${signal.red && signal.breath ? 'is-breathing' : ''}`} />
+        <span className={`traffic-light traffic-minimize ${signal.yellow ? 'is-active' : ''} ${signal.yellow && signal.breath ? 'is-breathing' : ''}`} />
+        <span className={`traffic-light traffic-ok ${signal.green ? 'is-active' : ''} ${signal.green && signal.breath ? 'is-breathing' : ''}`} />
       </div>
       <div className="capsule-copy">
         <div className="capsule-heading">
@@ -39,27 +39,29 @@ export default function FloatingCapsule({ snapshot, activity, expanded = false, 
 function getSignalState(activity: ProviderSnapshot['activity'] | undefined) {
   const status = activity?.status;
   const label = activity?.label || fallbackActivityLabel(status);
-  if (status === 'answering') {
-    return { red: true, yellow: false, green: false, blink: false, label };
+  if (status === 'executing' || status === 'answering') {
+    return { red: true, yellow: false, green: false, breath: true, label };
   }
-  if (status === 'waiting_for_user' || status === 'auto_reviewing') {
-    return {
-      red: false,
-      yellow: true,
-      green: false,
-      blink: Boolean(activity?.needsHumanAttention),
-      label
-    };
+  if (status === 'thinking') {
+    return { red: false, yellow: true, green: false, breath: true, label };
+  }
+  if (status === 'waiting_for_user') {
+    return { red: true, yellow: false, green: false, breath: true, label };
+  }
+  if (status === 'auto_reviewing') {
+    return { red: false, yellow: true, green: false, breath: true, label };
   }
   if (status === 'finished') {
-    return { red: false, yellow: false, green: true, blink: false, label };
+    return { red: false, yellow: false, green: true, breath: false, label };
   }
-  return { red: false, yellow: false, green: true, blink: false, label: label || '状态未知' };
+  return { red: false, yellow: false, green: true, breath: false, label: label || '状态未知' };
 }
 
 function fallbackActivityLabel(status?: string) {
+  if (status === 'thinking') return 'Codex 思考中';
+  if (status === 'executing') return 'Codex 执行中';
   if (status === 'answering') return 'Codex 执行中';
-  if (status === 'waiting_for_user') return 'Codex 思考中或等待授权';
+  if (status === 'waiting_for_user') return 'Codex 等待授权';
   if (status === 'auto_reviewing') return 'Codex 自动审核中';
   if (status === 'finished') return 'Codex 空闲';
   return 'Codex 状态未知';

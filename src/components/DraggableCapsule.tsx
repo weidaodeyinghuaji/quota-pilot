@@ -184,6 +184,15 @@ export default function DraggableCapsule({ position, onPositionChange, onTap, to
     window.requestAnimationFrame(updatePopoverPlacement);
   }, [onPositionChange, updatePopoverPlacement]);
 
+  const updateDesktopHitTest = React.useCallback((target: EventTarget | null) => {
+    if (!isDesktopShell || !window.codexQuotaDesktop?.updateHitTestRegions) return;
+    const element = target instanceof HTMLElement ? target : null;
+    const interactive = Boolean(
+      element?.closest('[data-hit-test="interactive"], .floating-capsule, .spend-toast, .capsule-popover')
+    );
+    window.codexQuotaDesktop.updateHitTestRegions({ interactive });
+  }, [isDesktopShell]);
+
   const handlePointerDown = React.useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
     if (!(event.target instanceof HTMLElement)) return;
@@ -201,6 +210,7 @@ export default function DraggableCapsule({ position, onPositionChange, onTap, to
       startY: event.clientY
     };
     if (isDesktopShell) {
+      window.codexQuotaDesktop?.updateHitTestRegions?.({ interactive: true });
       (window as any).codexQuotaDesktop.dragStart({
         screenX: event.screenX,
         screenY: event.screenY
@@ -257,6 +267,15 @@ export default function DraggableCapsule({ position, onPositionChange, onTap, to
     event.stopPropagation();
   }, []);
 
+  const handleMouseMove = React.useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    updateDesktopHitTest(event.target);
+  }, [updateDesktopHitTest]);
+
+  const handleMouseLeave = React.useCallback(() => {
+    if (!isDesktopShell || !window.codexQuotaDesktop?.updateHitTestRegions) return;
+    window.codexQuotaDesktop.updateHitTestRegions({ interactive: false });
+  }, [isDesktopShell]);
+
   const desktopStyle = isDesktopShell
     ? ({
         left: `${desktopLayout.offsetX}px`,
@@ -279,9 +298,13 @@ export default function DraggableCapsule({ position, onPositionChange, onTap, to
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerEnd}
       onPointerCancel={handlePointerEnd}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
       onClickCapture={handleClickCapture}
     >
-      {children}
+      <div data-hit-test="interactive">
+        {children}
+      </div>
     </div>
   );
 }

@@ -1,0 +1,38 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const appSource = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
+const electronMain = readFileSync(new URL('../electron/main.cjs', import.meta.url), 'utf8');
+const electronPreload = readFileSync(new URL('../electron/preload.cjs', import.meta.url), 'utf8');
+const settingsBranch = appSource.slice(
+  appSource.indexOf('if (isSettingsWindow) {'),
+  appSource.indexOf('if (isDetailWindow) {')
+);
+
+assert.match(electronMain, /createUpdateWindow/);
+assert.match(electronMain, /\?view=update/);
+assert.match(electronMain, /desktop-update-dismissed/);
+assert.match(electronMain, /desktop-update-dismiss/);
+assert.match(electronMain, /desktop-update-open-release/);
+assert.match(electronMain, /desktop-update-download/);
+assert.match(electronMain, /desktop-update-download-progress/);
+assert.match(electronMain, /downloadUpdateInstaller/);
+assert.match(electronMain, /shell\.openPath/);
+assert.match(electronPreload, /dismissUpdateReminder/);
+assert.match(electronPreload, /openUpdateRelease/);
+assert.match(electronPreload, /startUpdateDownload/);
+assert.match(electronPreload, /onUpdateDownloadProgress/);
+assert.match(electronPreload, /onUpdateDismissed/);
+
+assert.match(appSource, /const isUpdateWindow = urlParams\.get\('view'\) === 'update';/);
+assert.match(appSource, /if \(isUpdateWindow\) \{/);
+assert.match(appSource, /function UpdateWindowShell/);
+assert.match(appSource, /dismissUpdateReminder/);
+assert.match(appSource, /openUpdateRelease/);
+assert.match(appSource, /startUpdateDownload/);
+assert.match(appSource, /onUpdateDownloadProgress/);
+assert.match(appSource, /<progress/);
+assert.match(appSource, /onUpdateDismissed/);
+assert.doesNotMatch(settingsBranch, /<UpdateReminder/);
+
+console.log('update window source tests passed');

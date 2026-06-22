@@ -21,6 +21,7 @@ const TOPUP_CACHE_TTL_SECONDS = 10 * 60;
 const CODEX_SESSION_DISCOVERY_TTL_SECONDS = 5;
 const CODEX_RATE_LIMIT_CACHE_TTL_SECONDS = 5;
 const GITHUB_LATEST_RELEASE_URL = 'https://github.com/akitten-cn/codex-quota-glance/releases/latest';
+const GITHUB_LATEST_RELEASE_API_URL = 'https://api.github.com/repos/akitten-cn/codex-quota-glance/releases/latest';
 
 let server = null;
 let database = null;
@@ -108,6 +109,27 @@ async function handleRequest(request, response) {
 }
 
 async function getLatestRelease() {
+  const apiResponse = await fetch(GITHUB_LATEST_RELEASE_API_URL, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'CodexQuotaGlance/0.1'
+    }
+  });
+  if (apiResponse.ok) {
+    const release = await apiResponse.json();
+    return {
+      ok: true,
+      tag_name: release.tag_name,
+      html_url: release.html_url,
+      assets: Array.isArray(release.assets) ? release.assets.map((asset) => ({
+        name: asset.name,
+        browser_download_url: asset.browser_download_url,
+        size: asset.size
+      })) : []
+    };
+  }
+
   const response = await fetch(GITHUB_LATEST_RELEASE_URL, {
     method: 'GET',
     redirect: 'manual',
@@ -1088,49 +1110,49 @@ function codexActivityUpdate(event, state) {
   const payload = event.payload && typeof event.payload === 'object' ? event.payload : {};
   const payloadType = String(payload.type || '');
   const eventTs = parseIsoTimestamp(String(event.timestamp || ''));
-  if (payload.phase === 'final_answer') return activityUpdate('waiting_for_user', false, state.waitingForPlanChoice, { isFinalAnswer: true });
+  if (payload.phase === 'final_answer') return activityUpdate('thinking', false, state.waitingForPlanChoice, { isFinalAnswer: true });
   if (containsHumanWaitingSignal(payload) || containsHumanReviewSignal(payload)) {
     return activityUpdate('waiting_for_user', true, state.waitingForPlanChoice, { needsHumanAttention: true });
   }
   if (containsAutoReviewSignal(payload)) return activityUpdate('auto_reviewing', true, state.waitingForPlanChoice);
-  if (isToolStartEvent(eventType, payloadType, payload)) return activityUpdate('answering', true, false, { clearsFinalAnswer: true });
+  if (isToolStartEvent(eventType, payloadType, payload)) return activityUpdate('executing', true, false, { clearsFinalAnswer: true });
   if (eventType === 'event_msg') {
-    if (payloadType === 'task_started') return activityUpdate('waiting_for_user', true, false, { clearsFinalAnswer: true });
+    if (payloadType === 'task_started') return activityUpdate('thinking', true, false, { clearsFinalAnswer: true });
     if (payloadType === 'task_complete') {
-      if (shouldKeepFinalAnswerVisible(state.lastFinalAnswerAt, eventTs)) return activityUpdate('waiting_for_user', false, state.waitingForPlanChoice);
+      if (shouldKeepFinalAnswerVisible(state.lastFinalAnswerAt, eventTs)) return activityUpdate('thinking', false, state.waitingForPlanChoice);
       if (state.waitingForPlanChoice) return activityUpdate('waiting_for_user', false, true, { needsHumanAttention: true });
       return activityUpdate('finished', false, false, { completedTask: true });
     }
     if (['turn_aborted', 'thread_rolled_back'].includes(payloadType)) return activityUpdate('finished', false, false, { clearsFinalAnswer: true });
-    if (payloadType === 'user_message') return activityUpdate('waiting_for_user', true, false, { clearsFinalAnswer: true });
+    if (payloadType === 'user_message') return activityUpdate('thinking', true, false, { clearsFinalAnswer: true });
     if (payloadType === 'agent_message') {
       if (containsPlanChoiceSignal(payload)) return activityUpdate('waiting_for_user', false, true, { needsHumanAttention: true });
-      if (isExecutionCommentary(payload)) return activityUpdate('answering', true, false, { clearsFinalAnswer: true });
-      return state.isInsideTurn ? activityUpdate('answering', true, state.waitingForPlanChoice) : null;
+      if (isExecutionCommentary(payload)) return activityUpdate('executing', true, false, { clearsFinalAnswer: true });
+      return state.isInsideTurn ? activityUpdate('thinking', true, state.waitingForPlanChoice) : null;
     }
-    if (['patch_apply_begin', 'patch_apply_end'].includes(payloadType)) return activityUpdate('answering', true, false, { clearsFinalAnswer: true });
-    if (payloadType === 'agent_message_delta') return state.isInsideTurn ? activityUpdate('answering', true, state.waitingForPlanChoice) : null;
+    if (['patch_apply_begin', 'patch_apply_end'].includes(payloadType)) return activityUpdate('executing', true, false, { clearsFinalAnswer: true });
+    if (payloadType === 'agent_message_delta') return state.isInsideTurn ? activityUpdate('thinking', true, state.waitingForPlanChoice) : null;
     if (payloadType === 'token_count') return null;
-    return payloadType && state.isInsideTurn ? activityUpdate('answering', true, state.waitingForPlanChoice) : null;
+    return payloadType && state.isInsideTurn ? activityUpdate('thinking', true, state.waitingForPlanChoice) : null;
   }
   if (eventType === 'response_item') {
     if (containsPlanChoiceSignal(payload)) return activityUpdate('waiting_for_user', false, true, { needsHumanAttention: true });
     if (payloadType === 'function_call') {
       const needsUser = functionCallNeedsUser(payload);
-      return activityUpdate(needsUser ? 'waiting_for_user' : 'answering', true, needsUser, {
+      return activityUpdate(needsUser ? 'waiting_for_user' : 'executing', true, needsUser, {
         needsHumanAttention: needsUser,
         clearsFinalAnswer: true
       });
     }
     if (['function_call_output', 'custom_tool_call_output', 'custom_tool_call', 'web_search_call'].includes(payloadType)) {
-      return activityUpdate('answering', true, false, { clearsFinalAnswer: true });
+      return activityUpdate('executing', true, false, { clearsFinalAnswer: true });
     }
-    if (payloadType === 'reasoning') return state.isInsideTurn ? activityUpdate('waiting_for_user', true, state.waitingForPlanChoice) : null;
+    if (payloadType === 'reasoning') return state.isInsideTurn ? activityUpdate('thinking', true, state.waitingForPlanChoice) : null;
     if (payloadType === 'message') {
-      if (isExecutionCommentary(payload)) return activityUpdate('answering', true, false, { clearsFinalAnswer: true });
-      return state.isInsideTurn ? activityUpdate('answering', true, state.waitingForPlanChoice) : null;
+      if (isExecutionCommentary(payload)) return activityUpdate('executing', true, false, { clearsFinalAnswer: true });
+      return state.isInsideTurn ? activityUpdate('thinking', true, state.waitingForPlanChoice) : null;
     }
-    return payloadType && state.isInsideTurn ? activityUpdate('answering', true, state.waitingForPlanChoice) : null;
+    return payloadType && state.isInsideTurn ? activityUpdate('thinking', true, state.waitingForPlanChoice) : null;
   }
   return null;
 }
@@ -1816,6 +1838,8 @@ function rpcErrorMessage(message, fallback) {
 }
 
 function codexActivityLabel(status, needsHumanAttention) {
+  if (status === 'thinking') return '思考中';
+  if (status === 'executing') return '执行中';
   if (status === 'answering') return '执行中';
   if (status === 'waiting_for_user') return needsHumanAttention ? '等待授权' : '思考中';
   if (status === 'auto_reviewing') return '自动审核中';

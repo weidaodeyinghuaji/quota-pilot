@@ -19,6 +19,7 @@ declare global {
       notifyUpdateReady(): void;
       dismissUpdateReminder(): void;
       openUpdateRelease(url: string): void;
+      openUpdateWindow(): void;
       startUpdateDownload(asset: { name?: string; url?: string; size?: number }): void;
       onUpdateDownloadProgress(callback: (payload: {
         status?: string;

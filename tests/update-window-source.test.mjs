@@ -11,12 +11,17 @@ const settingsBranch = appSource.slice(
 
 assert.match(electronMain, /createUpdateWindow/);
 assert.match(electronMain, /\?view=update/);
+assert.match(electronMain, /height:\s*320/);
+assert.match(electronMain, /minHeight:\s*280/);
 assert.match(electronMain, /desktop-update-dismissed/);
 assert.match(electronMain, /desktop-update-dismiss/);
 assert.match(electronMain, /desktop-update-open-release/);
 assert.match(electronMain, /desktop-update-download/);
 assert.match(electronMain, /desktop-update-download-progress/);
 assert.match(electronMain, /downloadUpdateInstaller/);
+assert.match(electronMain, /net\.request/);
+assert.match(electronMain, /resolveProxy/);
+assert.match(electronMain, /downloadWithElectronNet/);
 assert.match(electronMain, /shell\.openPath/);
 assert.match(electronPreload, /dismissUpdateReminder/);
 assert.match(electronPreload, /openUpdateRelease/);
@@ -32,6 +37,8 @@ assert.match(appSource, /openUpdateRelease/);
 assert.match(appSource, /startUpdateDownload/);
 assert.match(appSource, /onUpdateDownloadProgress/);
 assert.match(appSource, /<progress/);
+assert.match(appSource, /downloadStarted/);
+assert.match(appSource, /!downloadStarted[\s\S]*本次运行不再提醒/);
 assert.match(appSource, /onUpdateDismissed/);
 assert.doesNotMatch(settingsBranch, /<UpdateReminder/);
 

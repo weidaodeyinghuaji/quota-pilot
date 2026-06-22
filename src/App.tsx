@@ -481,6 +481,7 @@ export default function App() {
           manualSyncState={manualSyncState}
           updateCheckState={updateCheckState}
           onCheckUpdate={() => runUpdateCheck()}
+          onOpenUpdateWindow={() => window.codexQuotaDesktop?.openUpdateWindow?.()}
           connectionState={connectionState}
         />
       </main>
@@ -551,6 +552,7 @@ export default function App() {
             manualSyncState={manualSyncState}
             updateCheckState={updateCheckState}
             onCheckUpdate={() => runUpdateCheck()}
+            onOpenUpdateWindow={() => window.codexQuotaDesktop?.openUpdateWindow?.()}
             connectionState={connectionState}
           />
         </div>
@@ -699,6 +701,7 @@ function UpdateReminder({
   const releaseUrl = updateCheckState.releaseUrl || GITHUB_RELEASES_URL;
   const installerAsset = updateCheckState.installerAsset;
   const downloading = downloadState?.status === 'downloading';
+  const downloadStarted = Boolean(downloadState?.status && downloadState.status !== 'idle');
   const canDownload = Boolean(onDownloadUpdate && installerAsset && !downloading);
   const dialog = (
     <section className={`update-reminder ${standalone ? 'update-reminder-inline' : ''}`} role="dialog" aria-modal="true" aria-label="发现新版本">
@@ -732,9 +735,11 @@ function UpdateReminder({
             更新
           </a>
         )}
-        <button className="secondary-action" type="button" onClick={onDismiss}>
-          本次运行不再提醒
-        </button>
+        {!downloadStarted && (
+          <button className="secondary-action" type="button" onClick={onDismiss}>
+            本次运行不再提醒
+          </button>
+        )}
       </div>
     </section>
   );

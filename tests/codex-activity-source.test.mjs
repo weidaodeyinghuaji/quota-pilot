@@ -9,6 +9,8 @@ assert.match(backend, /activityUpdate\('thinking'/);
 assert.match(backend, /activityUpdate\('executing'/);
 assert.match(backend, /payloadType === 'reasoning'[\s\S]*activityUpdate\('thinking'/);
 assert.match(backend, /isToolStartEvent\(eventType,\s*payloadType,\s*payload\)[\s\S]*activityUpdate\('executing'/);
+assert.doesNotMatch(backend, /isExecutionCommentary\(payload\)[\s\S]{0,120}activityUpdate\('executing'/);
+assert.doesNotMatch(backend, /function isExecutionCommentary/);
 assert.match(backend, /codexActivityLabel\(status/);
 assert.match(backend, /status === 'thinking'[\s\S]*思考/);
 assert.match(backend, /status === 'executing'[\s\S]*执行/);

@@ -23,6 +23,7 @@ interface Props {
   };
   updateCheckState: UpdateCheckState;
   onCheckUpdate: () => void;
+  onOpenUpdateWindow: () => void;
   connectionState: {
     status: string;
     message: string;
@@ -43,6 +44,7 @@ export default function SettingsPage({
   manualSyncState,
   updateCheckState,
   onCheckUpdate,
+  onOpenUpdateWindow,
   connectionState
 }: Props) {
   const { newApi } = settings;
@@ -246,7 +248,11 @@ export default function SettingsPage({
         )}
 
         {activeTab === 'about' && (
-          <AboutUpdateSection updateCheckState={updateCheckState} onCheckUpdate={onCheckUpdate} />
+          <AboutUpdateSection
+            updateCheckState={updateCheckState}
+            onCheckUpdate={onCheckUpdate}
+            onOpenUpdateWindow={onOpenUpdateWindow}
+          />
         )}
       </div>
     </section>
@@ -255,10 +261,12 @@ export default function SettingsPage({
 
 function AboutUpdateSection({
   updateCheckState,
-  onCheckUpdate
+  onCheckUpdate,
+  onOpenUpdateWindow
 }: {
   updateCheckState: UpdateCheckState;
   onCheckUpdate: () => void;
+  onOpenUpdateWindow: () => void;
 }) {
   return (
     <section className="settings-section">
@@ -290,6 +298,11 @@ function AboutUpdateSection({
         >
           {updateCheckState.status === 'loading' ? '检查中...' : '检查更新'}
         </button>
+        {updateCheckState.isNewer && (
+          <button className="primary-action" type="button" onClick={onOpenUpdateWindow}>
+            更新
+          </button>
+        )}
         {updateCheckState.message && (
           <span className={`connection-message connection-${updateCheckState.status}`}>
             {updateCheckState.message}

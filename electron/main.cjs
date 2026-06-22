@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, screen, shell } = require('electron');
+const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, net, screen, session, shell } = require('electron');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const http = require('node:http');
@@ -214,9 +214,9 @@ async function createUpdateWindow() {
 
   updateWindow = new BrowserWindow({
     width: 460,
-    height: 220,
+    height: 320,
     minWidth: 420,
-    minHeight: 190,
+    minHeight: 280,
     show: false,
     resizable: false,
     maximizable: false,
@@ -399,6 +399,17 @@ ipcMain.on('desktop-update-ready', (event) => {
   if (!win || win !== updateWindow || updateReminderDismissed) return;
   updateWindow.show();
   updateWindow.focus();
+});
+
+ipcMain.on('desktop-update-open-window', () => {
+  createUpdateWindow()
+    .then(() => {
+      if (updateWindow && !updateWindow.isDestroyed()) {
+        updateWindow.show();
+        updateWindow.focus();
+      }
+    })
+    .catch(() => {});
 });
 
 ipcMain.on('desktop-update-dismiss', (event) => {
@@ -621,31 +632,11 @@ async function downloadUpdateInstaller(asset, win) {
     const downloadsDir = path.join(app.getPath('temp'), 'CodexQuotaGlance', 'updates');
     await fsp.mkdir(downloadsDir, { recursive: true });
     const target = path.join(downloadsDir, safeFileName(name));
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'CodexQuotaGlance/0.1'
-      }
+    const result = await downloadWithElectronNet(url, target, Number(asset?.size) || 0, (progress) => {
+      sendUpdateDownloadProgress(win, { status: 'downloading', message: '正在下载安装包...', ...progress });
     });
-    if (!response.ok || !response.body) {
-      throw new Error(`下载安装包失败：HTTP ${response.status || 'unknown'}`);
-    }
-    const total = Number(response.headers.get('content-length')) || Number(asset?.size) || 0;
-    const reader = response.body.getReader();
-    const stream = fs.createWriteStream(target);
-    let received = 0;
-    sendUpdateDownloadProgress(win, { status: 'downloading', received, total, percent: 0, message: '正在下载安装包...' });
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const chunk = Buffer.from(value);
-      received += chunk.length;
-      stream.write(chunk);
-      const percent = total > 0 ? Math.min(100, Math.round((received / total) * 100)) : 0;
-      sendUpdateDownloadProgress(win, { status: 'downloading', received, total, percent, message: '正在下载安装包...' });
-    }
-    await new Promise((resolve, reject) => {
-      stream.end((error) => error ? reject(error) : resolve());
-    });
+    const received = result.received;
+    const total = result.total;
     sendUpdateDownloadProgress(win, { status: 'launching', received, total, percent: 100, message: '下载完成，正在启动安装程序...' });
     const openError = await shell.openPath(target);
     if (openError) throw new Error(openError);
@@ -653,6 +644,49 @@ async function downloadUpdateInstaller(asset, win) {
   } finally {
     updateDownloadInProgress = false;
   }
+}
+
+async function downloadWithElectronNet(url, target, expectedSize, onProgress) {
+  await session.defaultSession.resolveProxy(url);
+  return new Promise((resolve, reject) => {
+    const request = net.request({
+      method: 'GET',
+      url,
+      useSessionCookies: false
+    });
+    request.setHeader('User-Agent', 'CodexQuotaGlance/0.1');
+    request.on('response', (response) => {
+      const statusCode = Number(response.statusCode) || 0;
+      if (statusCode < 200 || statusCode >= 300) {
+        reject(new Error(`下载安装包失败：HTTP ${statusCode || 'unknown'}`));
+        response.resume();
+        return;
+      }
+      const total = Number(response.headers['content-length']) || expectedSize || 0;
+      const stream = fs.createWriteStream(target);
+      let received = 0;
+      onProgress?.({ received, total, percent: 0 });
+      response.on('data', (chunk) => {
+        received += chunk.length;
+        stream.write(chunk);
+        const percent = total > 0 ? Math.min(100, Math.round((received / total) * 100)) : 0;
+        onProgress?.({ received, total, percent });
+      });
+      response.on('end', () => {
+        stream.end((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve({ received, total });
+        });
+      });
+      response.on('error', reject);
+      stream.on('error', reject);
+    });
+    request.on('error', reject);
+    request.end();
+  });
 }
 
 function sendUpdateDownloadProgress(win, payload) {

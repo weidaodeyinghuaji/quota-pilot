@@ -37,6 +37,9 @@ contextBridge.exposeInMainWorld('codexQuotaDesktop', {
   openUpdateRelease(url) {
     ipcRenderer.send('desktop-update-open-release', url);
   },
+  openUpdateWindow() {
+    ipcRenderer.send('desktop-update-open-window');
+  },
   startUpdateDownload(asset) {
     ipcRenderer.send('desktop-update-download', asset);
   },

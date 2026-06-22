@@ -13,6 +13,7 @@ assert.match(appSource, /setUpdateReminderDismissed\(true\)/);
 assert.doesNotMatch(appSource, /window\.alert/);
 assert.match(appSource, /updateCheckState=\{updateCheckState\}/g);
 assert.match(appSource, /onCheckUpdate=\{\(\) => runUpdateCheck\(\)\}/g);
+assert.match(appSource, /onOpenUpdateWindow=\{\(\)\s*=>\s*window\.codexQuotaDesktop\?\.openUpdateWindow\?\.\(\)\}/);
 
 assert.match(settingsSource, /type SettingsTab = 'api' \| 'sync' \| 'about';/);
 assert.match(settingsSource, /关于\/更新/);
@@ -21,5 +22,8 @@ assert.match(settingsSource, /GITHUB_REPOSITORY_URL/);
 assert.match(settingsSource, /GITHUB_RELEASES_URL/);
 assert.match(settingsSource, /formatUpdateStatus/);
 assert.match(settingsSource, /检查更新/);
+
+assert.match(settingsSource, /onOpenUpdateWindow/);
+assert.match(settingsSource, /updateCheckState\.isNewer/);
 
 console.log('about update source tests passed');

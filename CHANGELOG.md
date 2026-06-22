@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.7
+
+- Fixed Codex activity lights so normal thinking/commentary text no longer keeps the red executing light on; only real tool and command activity is treated as executing.
+- Increased the standalone update window height so download progress and action buttons fit without clipping.
+- Hid the per-run dismiss button after an update download starts, avoiding accidental interruption of an in-progress update.
+- Added an Update button next to the manual update check in Settings > About/Update when a newer version is available.
+- Switched installer downloads to Electron's network stack with system proxy resolution so GitHub release asset downloads can follow the user's local VPN/system proxy.
+- Added regression coverage for the corrected activity mapping, update-window layout, Settings update entry point, and proxy-aware update downloads.
+
 ## 0.1.6
 
 - Removed the aggressive desktop capsule visibility guard that could bring hidden windows back incorrectly or leave the capsule missing after long runs.

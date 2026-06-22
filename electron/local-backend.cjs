@@ -1127,7 +1127,6 @@ function codexActivityUpdate(event, state) {
     if (payloadType === 'user_message') return activityUpdate('thinking', true, false, { clearsFinalAnswer: true });
     if (payloadType === 'agent_message') {
       if (containsPlanChoiceSignal(payload)) return activityUpdate('waiting_for_user', false, true, { needsHumanAttention: true });
-      if (isExecutionCommentary(payload)) return activityUpdate('executing', true, false, { clearsFinalAnswer: true });
       return state.isInsideTurn ? activityUpdate('thinking', true, state.waitingForPlanChoice) : null;
     }
     if (['patch_apply_begin', 'patch_apply_end'].includes(payloadType)) return activityUpdate('executing', true, false, { clearsFinalAnswer: true });
@@ -1149,7 +1148,6 @@ function codexActivityUpdate(event, state) {
     }
     if (payloadType === 'reasoning') return state.isInsideTurn ? activityUpdate('thinking', true, state.waitingForPlanChoice) : null;
     if (payloadType === 'message') {
-      if (isExecutionCommentary(payload)) return activityUpdate('executing', true, false, { clearsFinalAnswer: true });
       return state.isInsideTurn ? activityUpdate('thinking', true, state.waitingForPlanChoice) : null;
     }
     return payloadType && state.isInsideTurn ? activityUpdate('thinking', true, state.waitingForPlanChoice) : null;
@@ -1881,12 +1879,6 @@ function containsHumanReviewSignal(payload) {
 
 function containsPlanChoiceSignal(payload) {
   return stringValues(payload).some((value) => value.toLowerCase().includes('<proposed_plan>') || value.includes('实施此计划'));
-}
-
-function isExecutionCommentary(payload) {
-  if (payload.phase !== 'commentary') return false;
-  const markers = ['apply_patch', '执行', '运行', '构建', '测试', '正在修改', '开始修改'];
-  return stringValues(payload).some((value) => markers.some((marker) => value.includes(marker)));
 }
 
 function structuredStringValues(payload) {

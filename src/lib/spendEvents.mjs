@@ -11,7 +11,10 @@ export async function fetchCodexTokenSummary(options = {}) {
   if (typeof fetchImpl !== 'function') return undefined;
   const response = await fetchImpl('/local-api/codex/token/summary');
   if (!response?.ok) return undefined;
-  const payload = await response.json();
+  return normalizeCodexTokenSummary(await response.json());
+}
+
+export function normalizeCodexTokenSummary(payload) {
   if (!payload?.ok) return undefined;
   return {
     accountType: payload.accountType,

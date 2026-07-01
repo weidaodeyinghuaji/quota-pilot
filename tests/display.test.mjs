@@ -139,6 +139,33 @@ assert.match(officialTokenCapsule.subtitle, /7\.04K/);
 assert.match(officialTokenCapsule.subtitle, /68/);
 assert.match(officialTokenCapsule.subtitle, /30%/);
 
+const officialDailyTokenCapsule = getCapsuleDisplay({
+  ...codexOfficial,
+  quota: { window5h: {}, weekly: {} },
+  usage: {
+    log: {
+      requestCount: 1,
+      inputTokens: 100,
+      cachedInputTokens: 20,
+      outputTokens: 10,
+      cacheHitRate: 20
+    }
+  },
+  localLogs: {
+    today: {
+      requestCount: 8,
+      inputTokens: 9000,
+      cachedInputTokens: 3000,
+      outputTokens: 1200,
+      cacheHitRate: 33.333
+    }
+  }
+});
+assert.match(officialDailyTokenCapsule.subtitle, /9K/);
+assert.match(officialDailyTokenCapsule.subtitle, /3K/);
+assert.match(officialDailyTokenCapsule.subtitle, /1\.2K/);
+assert.doesNotMatch(officialDailyTokenCapsule.subtitle, /100/);
+
 const officialQuotaWithTokenCapsule = getCapsuleDisplay({
   ...codexOfficial,
   usage: {

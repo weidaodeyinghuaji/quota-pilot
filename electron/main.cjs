@@ -44,7 +44,9 @@ let capsuleUserHidden = false;
 let capsuleMouseIgnored = false;
 let updateReminderDismissed = false;
 let capsuleRecoveryTimer = null;
+let capsuleVisibilityGuardTimer = null;
 let updateDownloadInProgress = false;
+let latestLiveData = null;
 let lastWindowLayout = {
   placement: 'bottom',
   offsetX: 0,
@@ -66,6 +68,7 @@ async function createApp() {
   await ensureBackend();
   createTray();
   await createCapsuleWindow();
+  startCapsuleVisibilityGuard();
   setTimeout(() => {
     createUpdateWindow().catch(() => {});
   }, 900);
@@ -101,7 +104,12 @@ async function createCapsuleWindow() {
 
   capsuleWindow.setAlwaysOnTop(true, 'floating');
   capsuleWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: false });
-  capsuleWindow.once('ready-to-show', () => capsuleWindow.showInactive());
+  capsuleWindow.once('ready-to-show', () => {
+    if (capsuleUserHidden) return;
+    capsuleWindow.showInactive();
+    keepFloatingWindowOnTop(capsuleWindow);
+    refreshCapsuleMouseHitTest();
+  });
   capsuleWindow.on('closed', () => {
     capsuleWindow = null;
     capsuleMouseIgnored = false;
@@ -116,6 +124,7 @@ async function createCapsuleWindow() {
   installWindowHandlers(capsuleWindow);
   await capsuleWindow.loadURL(`${APP_URL}?desktop=1`);
   setCapsuleMousePassthrough(true);
+  refreshCapsuleMouseHitTest();
 }
 
 async function ensureDetailWindow() {
@@ -152,6 +161,7 @@ async function ensureDetailWindow() {
   detailWindow.webContents.on('did-finish-load', () => {
     detailContentReady = true;
     detailWindow?.webContents.send('desktop-popover-placement', lastWindowLayout.placement);
+    sendLiveDataToDetail();
   });
   detailWindow.on('closed', () => {
     detailWindow = null;
@@ -276,7 +286,7 @@ function toggleCapsuleWindow() {
     capsuleWindow.hide();
   } else {
     capsuleUserHidden = false;
-    capsuleWindow.showInactive();
+    restoreCapsuleAfterDisplayChange();
   }
 }
 
@@ -400,6 +410,19 @@ ipcMain.on('desktop-saved-position', (event, position) => {
   }
 });
 
+ipcMain.on('desktop-live-data-publish', (event, payload) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win !== capsuleWindow || !payload || typeof payload !== 'object') return;
+  latestLiveData = payload;
+  sendLiveDataToDetail();
+});
+
+ipcMain.on('desktop-live-data-request', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win !== detailWindow) return;
+  sendLiveDataToDetail();
+});
+
 ipcMain.on('desktop-update-ready', (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win || win !== updateWindow || updateReminderDismissed) return;
@@ -454,25 +477,27 @@ function resizeCapsuleWindow() {
   if (dragState) return;
   const current = capsuleWindow.getBounds();
   const layout = lastLayout;
-  const workArea = screen.getDisplayMatching(current).workArea;
   const capsuleSize = normalizeSize(layout.capsule, DEFAULT_CAPSULE_SIZE);
-  const currentCapsuleScreen = getAnchoredCapsuleBounds(current, capsuleSize, workArea);
+  const currentCapsuleScreen = getCapsuleAnchorCandidate(current, capsuleSize);
+  const workArea = getDisplayForCapsuleBounds(currentCapsuleScreen, current).workArea;
+  const anchoredCapsuleScreen = clampCapsuleToWorkArea(currentCapsuleScreen, capsuleSize, workArea);
 
   const width = capsuleSize.width + CAPSULE_WINDOW_PAD;
   const toastSpace = RESERVED_TOAST_SPACE;
   const height = capsuleSize.height + toastSpace + CAPSULE_WINDOW_PAD;
-  const x = clamp(currentCapsuleScreen.x, workArea.x + SCREEN_MARGIN, workArea.x + workArea.width - width - SCREEN_MARGIN);
+  const x = clamp(anchoredCapsuleScreen.x, workArea.x + SCREEN_MARGIN, workArea.x + workArea.width - width - SCREEN_MARGIN);
   const y = clamp(
-    currentCapsuleScreen.y - toastSpace,
+    anchoredCapsuleScreen.y - toastSpace,
     workArea.y + SCREEN_MARGIN,
     workArea.y + workArea.height - height - SCREEN_MARGIN
   );
-  const offsetX = clamp(currentCapsuleScreen.x - x, 0, Math.max(0, width - capsuleSize.width));
-  const offsetY = clamp(currentCapsuleScreen.y - y, 0, Math.max(0, height - capsuleSize.height));
+  const offsetX = clamp(anchoredCapsuleScreen.x - x, 0, Math.max(0, width - capsuleSize.width));
+  const offsetY = clamp(anchoredCapsuleScreen.y - y, 0, Math.max(0, height - capsuleSize.height));
   capsuleAnchor = { x: x + offsetX, y: y + offsetY, width: capsuleSize.width, height: capsuleSize.height };
   const changed = setCapsuleWindowBounds({ x, y, width, height });
   sendWindowLayout({ placement: 'bottom', offsetX, offsetY, detailOffset: 0, popoverShiftX: 0 });
   if (changed) keepFloatingWindowOnTop();
+  refreshCapsuleMouseHitTest();
 }
 
 async function showDetailWindow() {
@@ -545,6 +570,10 @@ function positionDetailWindow() {
 }
 
 function getAnchoredCapsuleBounds(current, capsuleSize, workArea) {
+  return clampCapsuleToWorkArea(getCapsuleAnchorCandidate(current, capsuleSize), capsuleSize, workArea);
+}
+
+function getCapsuleAnchorCandidate(current, capsuleSize) {
   const base = capsuleAnchor || (
     savedCapsulePosition
       ? { x: savedCapsulePosition.x, y: savedCapsulePosition.y, width: capsuleSize.width, height: capsuleSize.height }
@@ -555,9 +584,23 @@ function getAnchoredCapsuleBounds(current, capsuleSize, workArea) {
           height: capsuleSize.height
         }
   );
+  return { x: base.x, y: base.y, width: capsuleSize.width, height: capsuleSize.height };
+}
+
+function clampCapsuleToWorkArea(base, capsuleSize, workArea) {
   const x = clamp(base.x, workArea.x + SCREEN_MARGIN, workArea.x + workArea.width - capsuleSize.width - SCREEN_MARGIN);
   const y = clamp(base.y, workArea.y + SCREEN_MARGIN, workArea.y + workArea.height - capsuleSize.height - SCREEN_MARGIN);
   return { x, y, width: capsuleSize.width, height: capsuleSize.height };
+}
+
+function getDisplayForCapsuleBounds(capsuleBounds, fallbackBounds) {
+  const candidate = {
+    x: Math.round(finite(capsuleBounds?.x, fallbackBounds?.x ?? 0)),
+    y: Math.round(finite(capsuleBounds?.y, fallbackBounds?.y ?? 0)),
+    width: Math.max(1, Math.round(finite(capsuleBounds?.width, fallbackBounds?.width ?? DEFAULT_CAPSULE_SIZE.width))),
+    height: Math.max(1, Math.round(finite(capsuleBounds?.height, fallbackBounds?.height ?? DEFAULT_CAPSULE_SIZE.height)))
+  };
+  return screen.getDisplayMatching(candidate);
 }
 
 function getCurrentCapsuleScreenBounds() {
@@ -599,6 +642,80 @@ function keepFloatingWindowOnTop(win = capsuleWindow) {
   if (!win || win.isDestroyed()) return;
   win.setAlwaysOnTop(true, 'floating');
   win.moveTop();
+}
+
+function startCapsuleVisibilityGuard() {
+  if (capsuleVisibilityGuardTimer) return;
+  capsuleVisibilityGuardTimer = setInterval(restoreCapsuleAfterDisplayChange, 2000);
+  screen.on('display-added', restoreCapsuleAfterDisplayChange);
+  screen.on('display-removed', restoreCapsuleAfterDisplayChange);
+  screen.on('display-metrics-changed', restoreCapsuleAfterDisplayChange);
+  app.on('browser-window-focus', restoreCapsuleAfterDisplayChange);
+}
+
+function stopCapsuleVisibilityGuard() {
+  if (capsuleVisibilityGuardTimer) {
+    clearInterval(capsuleVisibilityGuardTimer);
+    capsuleVisibilityGuardTimer = null;
+  }
+  screen.off('display-added', restoreCapsuleAfterDisplayChange);
+  screen.off('display-removed', restoreCapsuleAfterDisplayChange);
+  screen.off('display-metrics-changed', restoreCapsuleAfterDisplayChange);
+  app.off('browser-window-focus', restoreCapsuleAfterDisplayChange);
+}
+
+function restoreCapsuleAfterDisplayChange() {
+  if (capsuleUserHidden) return;
+  if (!capsuleWindow || capsuleWindow.isDestroyed()) {
+    createCapsuleWindow().catch(() => {});
+    return;
+  }
+  const wasVisible = capsuleWindow.isVisible();
+  resizeCapsuleWindow();
+  if (!wasVisible) {
+    capsuleWindow.showInactive();
+  }
+  if (!wasVisible || !capsuleWindow.isAlwaysOnTop()) {
+    keepFloatingWindowOnTop(capsuleWindow);
+  }
+  refreshCapsuleMouseHitTest();
+  if (detailOpen) positionDetailWindow();
+}
+
+function refreshCapsuleMouseHitTest() {
+  if (!capsuleWindow || capsuleWindow.isDestroyed()) return;
+  if (dragState) {
+    setCapsuleMousePassthrough(false);
+    return;
+  }
+  if (!capsuleWindow.isVisible()) {
+    setCapsuleMousePassthrough(true);
+    return;
+  }
+  const point = screen.getCursorScreenPoint();
+  const interactive = getCapsuleInteractiveBounds().some((bounds) => pointInRect(point, bounds));
+  setCapsuleMousePassthrough(!interactive);
+}
+
+function getCapsuleInteractiveBounds() {
+  const capsule = getCurrentCapsuleScreenBounds();
+  if (!toastOpen) return [capsule];
+  return [
+    capsule,
+    {
+      x: capsule.x,
+      y: capsule.y - RESERVED_TOAST_SPACE,
+      width: capsule.width,
+      height: capsule.height + RESERVED_TOAST_SPACE
+    }
+  ];
+}
+
+function pointInRect(point, rect) {
+  return point.x >= rect.x &&
+    point.x <= rect.x + rect.width &&
+    point.y >= rect.y &&
+    point.y <= rect.y + rect.height;
 }
 
 function setCapsuleMousePassthrough(ignore) {
@@ -772,12 +889,23 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(value, max));
 }
 
+function notifyCapsuleDataInvalidated() {
+  if (!capsuleWindow || capsuleWindow.isDestroyed() || capsuleWindow.webContents.isDestroyed()) return;
+  capsuleWindow.webContents.send('desktop-data-invalidated');
+}
+
+function sendLiveDataToDetail() {
+  if (!latestLiveData || !detailWindow || detailWindow.isDestroyed() || detailWindow.webContents.isDestroyed()) return;
+  detailWindow.webContents.send('desktop-live-data', latestLiveData);
+}
+
 async function ensureBackend() {
   if (await canConnect()) return;
   const appRoot = app.getAppPath();
   await startLocalBackend({
     appRoot,
-    distDir: path.join(appRoot, 'dist')
+    distDir: path.join(appRoot, 'dist'),
+    onCodexSessionChanged: notifyCapsuleDataInvalidated
   });
   ownsBackend = true;
 
@@ -829,6 +957,7 @@ app.on('before-quit', async () => {
     clearTimeout(capsuleRecoveryTimer);
     capsuleRecoveryTimer = null;
   }
+  stopCapsuleVisibilityGuard();
   if (ownsBackend) {
     await stopLocalBackend();
     ownsBackend = false;

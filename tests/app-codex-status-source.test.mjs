@@ -3,13 +3,13 @@ import { readFileSync } from 'node:fs';
 
 const source = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
 
-assert.match(source, /import\s+\{\s*fetchCodexStatus\s*\}\s+from\s+'\.\/lib\/codexStatusStore\.mjs';/);
+assert.match(source, /import\s+\{\s*fetchCodexOverview\s*\}\s+from\s+'\.\/lib\/codexOverviewStore\.mjs';/);
 assert.match(source, /import\s+DraggableCapsule\s+from\s+'\.\/components\/DraggableCapsule';/);
 assert.match(source, /updateCapsulePosition/);
 assert.match(source, /const\s+\[codexStatus,\s*setCodexStatus\]\s*=\s*React\.useState\(null\);/);
 assert.match(source, /const\s+\[codexStatusLoaded,\s*setCodexStatusLoaded\]\s*=\s*React\.useState\(false\);/);
-assert.match(source, /const shouldPollCodexStatusFast = codexStatusLoaded;/);
-assert.match(source, /fetchCodexStatus\(\)/);
+assert.match(source, /fetchCodexOverview\(\)/);
+assert.match(source, /if \(overview\.status\) setCodexStatus\(overview\.status\);/);
 assert.match(source, /setCodexStatusLoaded\(true\)/);
 assert.match(source, /settings\.newApi\.codexTokenPollIntervalSeconds/);
 assert.match(source, /buildSnapshots\([\s\S]*codexStatus[\s\S]*\)/);

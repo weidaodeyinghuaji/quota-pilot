@@ -20,6 +20,7 @@ assert.match(backend, /status === 'executing'[\s\S]*执行/);
 
 assert.match(capsule, /status === 'executing'/);
 assert.match(capsule, /status === 'thinking'/);
+assert.match(capsule, /status === 'unknown' \|\| !status[\s\S]*green:\s*false/);
 assert.match(capsule, /traffic-light[^`]+is-breathing/);
 assert.match(css, /@keyframes signal-breathe/);
 assert.doesNotMatch(css, /@keyframes signal-blink/);

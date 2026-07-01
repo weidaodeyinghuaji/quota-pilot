@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.10
+
+- Fixed stale Codex activity state so the capsule returns to idle after a stopped session stops writing activity events.
+- Fixed API-mode daily token and spend display when the New API access token is invalid by falling back to trusted local Codex usage data for the current day.
+- Kept fast local updates through the Codex session watcher and shared overview endpoint while reducing duplicated detail-window polling.
+- Added regression coverage for stale activity settling, local API-mode spend fallback, Codex overview ingestion, and refresh coordination.
+
 ## 0.1.9
 
 - 设置页点击“更新”后会直接打开更新窗口并自动开始下载，无需在更新窗口中再次点击。

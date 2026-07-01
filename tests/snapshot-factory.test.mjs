@@ -409,6 +409,114 @@ assert.equal(localCodexTodayEstimate.localLogs.today.rawUsedAmount, 1_025_000);
 assert.equal(localCodexTodayEstimate.localLogs.today.usedAmount, 2.05);
 assert.equal(round(localCodexTodayEstimate.usage.estimatedCost), 2.05);
 
+const platformTodaySpendWinsOverCodexEstimate = buildSnapshots(baseSettings, new Date('2026-06-03T09:00:01.000Z'), {
+  localLogSummary: {
+    today: {
+      requestCount: 4,
+      inputTokens: 5000,
+      cachedInputTokens: 1000,
+      outputTokens: 800,
+      totalTokens: 5800,
+      rawUsedAmount: 250000,
+      usedAmount: 0.5
+    }
+  },
+  codexTokenSummary: {
+    today: {
+      requestCount: 3,
+      inputTokens: 1_000_000,
+      cachedInputTokens: 500_000,
+      outputTokens: 100_000,
+      totalTokens: 1_100_000
+    }
+  }
+}).find((snapshot) => snapshot.providerType === 'new-api');
+
+assert.equal(platformTodaySpendWinsOverCodexEstimate.localLogs.today.rawUsedAmount, 250000);
+assert.equal(platformTodaySpendWinsOverCodexEstimate.localLogs.today.usedAmount, 0.5);
+assert.equal(platformTodaySpendWinsOverCodexEstimate.localLogs.today.requestCount, 4);
+
+const emptyPlatformTodayFallsBackToCodexEstimate = buildSnapshots(baseSettings, new Date('2026-06-03T09:00:01.000Z'), {
+  localLogSummary: {
+    today: {
+      requestCount: 0,
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      rawUsedAmount: 0,
+      usedAmount: 0
+    }
+  },
+  codexTokenSummary: {
+    today: {
+      requestCount: 3,
+      inputTokens: 1_000_000,
+      cachedInputTokens: 500_000,
+      outputTokens: 100_000,
+      totalTokens: 1_100_000
+    }
+  }
+}).find((snapshot) => snapshot.providerType === 'new-api');
+
+assert.equal(emptyPlatformTodayFallsBackToCodexEstimate.localLogs.today.rawUsedAmount, 1_025_000);
+assert.equal(emptyPlatformTodayFallsBackToCodexEstimate.localLogs.today.requestCount, 3);
+
+const invalidTokenUsesLocalCodexAllForToday = buildSnapshots(baseSettings, new Date('2026-06-03T09:00:01.000Z'), {
+  newApiSnapshot: {
+    providerId: 'new-api-main',
+    providerName: '鎺ュ彛鏁版嵁',
+    providerType: 'new-api',
+    usage: {},
+    status: 'error',
+    error: 'Unauthorized, invalid access token',
+    updatedAt: '2026-06-03T09:00:00.000Z'
+  },
+  localLogSummary: {
+    today: {
+      requestCount: 0,
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      rawUsedAmount: 0,
+      usedAmount: 0
+    },
+    all: {
+      requestCount: 9,
+      inputTokens: 717_370_000,
+      cachedInputTokens: 682_630_000,
+      outputTokens: 2_300_000,
+      totalTokens: 719_670_000,
+      rawUsedAmount: 0,
+      usedAmount: 0
+    }
+  },
+  codexTokenSummary: {
+    today: {
+      requestCount: 0,
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      rawUsedAmount: 0,
+      usedAmount: 0
+    },
+    all: {
+      requestCount: 9,
+      inputTokens: 717_370_000,
+      cachedInputTokens: 682_630_000,
+      outputTokens: 2_300_000,
+      totalTokens: 719_670_000
+    },
+    latestEventAt: Math.floor(Date.parse('2026-06-03T08:59:59.000Z') / 1000)
+  }
+}).find((snapshot) => snapshot.providerType === 'new-api');
+
+assert.equal(invalidTokenUsesLocalCodexAllForToday.localLogs.today.totalTokens, 719_670_000);
+assert.equal(invalidTokenUsesLocalCodexAllForToday.localLogs.today.requestCount, 9);
+assert.ok(invalidTokenUsesLocalCodexAllForToday.localLogs.today.rawUsedAmount > 0);
+
 console.log('snapshot factory tests passed');
 
 function round(value) {

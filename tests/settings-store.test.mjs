@@ -43,7 +43,7 @@ assert.equal(loaded.newApi.baseUrl, 'https://new-api.example.test');
 assert.equal(loaded.newApi.newApiUser, '1');
 assert.equal(loaded.newApi.amountDisplayMode, 'cny');
 assert.equal(loaded.newApi.refreshIntervalSeconds, 30);
-assert.equal(loaded.newApi.codexTokenPollIntervalSeconds, 2);
+assert.equal(loaded.newApi.codexTokenPollIntervalSeconds, 5);
 assert.equal(loaded.newApi.accountRefreshIntervalSeconds, 300);
 assert.equal(loaded.newApi.topupRefreshIntervalSeconds, 600);
 assert.equal(loaded.newApi.spendToastSeconds, 5);
@@ -58,7 +58,7 @@ assert.deepEqual(movedCapsule.window.capsulePosition, { x: 333, y: 89 });
 assert.deepEqual(loaded.window.capsulePosition, { x: 121, y: 42 });
 
 const invalidCapsulePosition = updateCapsulePosition(loaded, { x: 'bad', y: -12 });
-assert.deepEqual(invalidCapsulePosition.window.capsulePosition, { x: 28, y: 0 });
+assert.deepEqual(invalidCapsulePosition.window.capsulePosition, { x: 28, y: -12 });
 
 const pollutedKeyStorage = createMemoryStorage({
   codexQuotaGlanceSettings: JSON.stringify({

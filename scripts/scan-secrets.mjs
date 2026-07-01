@@ -19,11 +19,28 @@ const excludedDirectories = new Set([
   'release',
   'release-electron',
   'data',
+  'src-tauri',
+  'native/target',
+  'test-artifacts',
   '__pycache__',
   '.codex-signal-glance-ref',
   'docs/superpowers'
 ]);
-const excludedExtensions = new Set(['.exe', '.dll', '.bin', '.pak', '.dat', '.pyc', '.zip', '.sqlite3', '.ico', '.png']);
+const excludedExtensions = new Set([
+  '.exe',
+  '.dll',
+  '.bin',
+  '.pak',
+  '.dat',
+  '.pyc',
+  '.zip',
+  '.sqlite3',
+  '.ico',
+  '.png',
+  '.pdb',
+  '.rlib',
+  '.lib'
+]);
 const findings = [];
 
 await walk(root);

@@ -86,5 +86,23 @@ contextBridge.exposeInMainWorld('codexQuotaDesktop', {
     const listener = (_event, position) => callback(position);
     ipcRenderer.on('desktop-position-changed', listener);
     return () => ipcRenderer.removeListener('desktop-position-changed', listener);
+  },
+  onDataInvalidated(callback) {
+    if (typeof callback !== 'function') return () => {};
+    const listener = () => callback();
+    ipcRenderer.on('desktop-data-invalidated', listener);
+    return () => ipcRenderer.removeListener('desktop-data-invalidated', listener);
+  },
+  publishLiveData(payload) {
+    ipcRenderer.send('desktop-live-data-publish', payload);
+  },
+  requestLiveData() {
+    ipcRenderer.send('desktop-live-data-request');
+  },
+  onLiveData(callback) {
+    if (typeof callback !== 'function') return () => {};
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on('desktop-live-data', listener);
+    return () => ipcRenderer.removeListener('desktop-live-data', listener);
   }
 });

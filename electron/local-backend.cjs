@@ -19,22 +19,41 @@ const LOG_WINDOW_CAP = 1000;
 const ACCOUNT_CACHE_TTL_SECONDS = 5 * 60;
 const TOPUP_CACHE_TTL_SECONDS = 10 * 60;
 const CODEX_SESSION_DISCOVERY_TTL_SECONDS = 5;
-const CODEX_RATE_LIMIT_CACHE_TTL_SECONDS = 5;
+const CODEX_RATE_LIMIT_CACHE_TTL_SECONDS = 60;
+const CODEX_SESSION_WATCH_DEBOUNCE_MS = 100;
+const CODEX_ACTIVITY_STALE_MS = 90 * 1000;
 const GITHUB_LATEST_RELEASE_URL = 'https://github.com/akitten-cn/codex-quota-glance/releases/latest';
 const GITHUB_LATEST_RELEASE_API_URL = 'https://api.github.com/repos/akitten-cn/codex-quota-glance/releases/latest';
 
 let server = null;
 let database = null;
 let paths = null;
+let codexSessionWatcher = null;
+let codexSessionWatchTimer = null;
+let codexSessionWatchNeedsDiscovery = false;
+let onCodexSessionChanged = null;
 const codexSessionCache = { checkedAt: 0, path: null };
-const codexTokenEventCache = { path: null, offset: 0, latestEvent: null };
+const codexTokenFileCaches = new Map();
+const codexActivityCache = { path: null, size: -1, mtimeMs: -1, activity: null };
 const codexRateLimitCache = { checkedAt: 0, quota: null, source: null, message: null };
 
 async function startLocalBackend(options = {}) {
-  if (server) return server;
+  if (server) {
+    if (typeof options.onCodexSessionChanged === 'function') {
+      onCodexSessionChanged = options.onCodexSessionChanged;
+    }
+    return server;
+  }
   paths = resolvePaths(options);
+  onCodexSessionChanged = typeof options.onCodexSessionChanged === 'function'
+    ? options.onCodexSessionChanged
+    : null;
+  Object.assign(codexSessionCache, { checkedAt: 0, path: null });
+  codexTokenFileCaches.clear();
+  Object.assign(codexActivityCache, { path: null, size: -1, mtimeMs: -1, activity: null });
   fs.mkdirSync(paths.dataDir, { recursive: true });
   initDb();
+  syncTodayCodexTokenEvents();
 
   server = http.createServer((request, response) => {
     handleRequest(request, response).catch((error) => {
@@ -49,10 +68,13 @@ async function startLocalBackend(options = {}) {
       resolve();
     });
   });
+  startCodexSessionWatcher();
   return server;
 }
 
 async function stopLocalBackend() {
+  stopCodexSessionWatcher();
+  onCodexSessionChanged = null;
   const current = server;
   server = null;
   if (database) {
@@ -61,6 +83,57 @@ async function stopLocalBackend() {
   }
   if (!current) return;
   await new Promise((resolve) => current.close(resolve));
+}
+
+function startCodexSessionWatcher() {
+  stopCodexSessionWatcher();
+  if (!paths?.codexSessions || !fs.existsSync(paths.codexSessions)) return;
+  try {
+    codexSessionWatcher = fs.watch(
+      paths.codexSessions,
+      { recursive: process.platform === 'win32' },
+      (_eventType, filename) => {
+        if (filename && !String(filename).toLowerCase().endsWith('.jsonl')) return;
+        const changedPath = filename ? path.resolve(paths.codexSessions, String(filename)) : null;
+        if (!isSameFilePath(changedPath, codexSessionCache.path)) {
+          codexSessionWatchNeedsDiscovery = true;
+        }
+        if (codexSessionWatchTimer) clearTimeout(codexSessionWatchTimer);
+        codexSessionWatchTimer = setTimeout(() => {
+          codexSessionWatchTimer = null;
+          if (codexSessionWatchNeedsDiscovery) {
+            Object.assign(codexSessionCache, { checkedAt: 0, path: null });
+            codexSessionWatchNeedsDiscovery = false;
+          }
+          Object.assign(codexActivityCache, { path: null, size: -1, mtimeMs: -1, activity: null });
+          onCodexSessionChanged?.();
+        }, CODEX_SESSION_WATCH_DEBOUNCE_MS);
+        codexSessionWatchTimer.unref?.();
+      }
+    );
+    codexSessionWatcher.on('error', stopCodexSessionWatcher);
+  } catch {
+    stopCodexSessionWatcher();
+  }
+}
+
+function stopCodexSessionWatcher() {
+  codexSessionWatchNeedsDiscovery = false;
+  if (codexSessionWatchTimer) {
+    clearTimeout(codexSessionWatchTimer);
+    codexSessionWatchTimer = null;
+  }
+  if (codexSessionWatcher) {
+    codexSessionWatcher.close();
+    codexSessionWatcher = null;
+  }
+}
+
+function isSameFilePath(first, second) {
+  if (!first || !second) return false;
+  const left = path.normalize(path.resolve(first));
+  const right = path.normalize(path.resolve(second));
+  return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right;
 }
 
 async function handleRequest(request, response) {
@@ -93,6 +166,10 @@ async function handleRequest(request, response) {
     sendJson(response, 200, getLatestCodexTokenUsage());
     return;
   }
+  if (request.method === 'GET' && requestUrl.pathname === '/local-api/codex/overview') {
+    sendJson(response, 200, await getCodexOverview());
+    return;
+  }
   if (request.method === 'GET' && requestUrl.pathname === '/local-api/codex/token/summary') {
     sendJson(response, 200, getCodexTokenSummary());
     return;
@@ -106,6 +183,23 @@ async function handleRequest(request, response) {
     return;
   }
   await serveStatic(requestUrl, response);
+}
+
+async function getCodexOverview() {
+  let latestToken;
+  try {
+    latestToken = getLatestCodexTokenUsage();
+  } catch (error) {
+    latestToken = { ok: false, available: false, message: errorMessage(error) };
+  }
+
+  const [status, tokenSummary] = await Promise.all([
+    getCodexStatus().catch((error) => ({ ok: false, message: errorMessage(error) })),
+    Promise.resolve()
+      .then(() => getCodexTokenSummary())
+      .catch((error) => ({ ok: false, message: errorMessage(error) }))
+  ]);
+  return { ok: true, status, latestToken, tokenSummary };
 }
 
 async function getLatestRelease() {
@@ -801,27 +895,36 @@ function summarizeLogRows(rows) {
 function getLatestCodexTokenUsage() {
   const latestFile = findLatestCodexSessionFile();
   if (!latestFile) return { ok: true, available: false };
-  let latestEvent;
+  let tokenEvents;
   try {
-    latestEvent = readLatestCodexTokenEvent(latestFile);
+    tokenEvents = readNewCodexTokenEvents(latestFile);
   } catch (error) {
     return { ok: false, available: false, message: errorMessage(error) };
   }
+  const { latestEvent, newEvents } = tokenEvents;
   if (!latestEvent) return { ok: true, available: false, sessionFile: latestFile };
-  const payload = latestEvent.payload || {};
+  const accountType = getCodexAccountType();
+  for (const rawEvent of newEvents) {
+    saveCodexTokenEvent(buildCodexTokenEvent(rawEvent, latestFile, accountType), rawEvent);
+  }
+  return buildCodexTokenEvent(latestEvent, latestFile, accountType);
+}
+
+function buildCodexTokenEvent(rawEvent, sessionFile, accountType = getCodexAccountType()) {
+  const payload = rawEvent.payload || {};
   const info = payload.info || {};
   const usage = info.last_token_usage || {};
   const rateLimits = payload.rate_limits || {};
-  const timestamp = String(latestEvent.timestamp || '');
-  const eventId = sha256(`${latestFile}:${timestamp}:${JSON.stringify(usage)}:${JSON.stringify(rateLimits)}`);
-  const event = {
+  const timestamp = String(rawEvent.timestamp || '');
+  const eventId = sha256(`${sessionFile}:${timestamp}:${JSON.stringify(usage)}:${JSON.stringify(rateLimits)}`);
+  return {
     ok: true,
     available: true,
     source: 'codex',
     eventId,
     timestamp,
-    accountType: getCodexAccountType(),
-    sessionFile: latestFile,
+    accountType,
+    sessionFile,
     usage: {
       inputTokens: Math.trunc(numberOrZero(usage.input_tokens)),
       cachedInputTokens: Math.trunc(numberOrZero(usage.cached_input_tokens)),
@@ -831,8 +934,6 @@ function getLatestCodexTokenUsage() {
     },
     quota: normalizeCodexRateLimits(rateLimits)
   };
-  saveCodexTokenEvent(event, latestEvent);
-  return event;
 }
 
 function getCodexTokenSummary(context = {}) {
@@ -841,7 +942,9 @@ function getCodexTokenSummary(context = {}) {
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
   const start = Math.floor(dayStart.getTime() / 1000);
-  const end = start + 86400;
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+  const end = Math.floor(dayEnd.getTime() / 1000);
   return {
     ok: true,
     accountType,
@@ -853,6 +956,40 @@ function getCodexTokenSummary(context = {}) {
 
 function summarizeCodexTokenRows(whereSql, params) {
   const row = database.prepare(`
+    with ordered as (
+      select
+        *,
+        lag(event_id) over (
+          partition by account_type, coalesce(session_file, '')
+          order by event_timestamp, event_iso, event_id
+        ) as previous_event_id,
+        lag(input_tokens) over (
+          partition by account_type, coalesce(session_file, '')
+          order by event_timestamp, event_iso, event_id
+        ) as previous_input_tokens,
+        lag(cached_input_tokens) over (
+          partition by account_type, coalesce(session_file, '')
+          order by event_timestamp, event_iso, event_id
+        ) as previous_cached_input_tokens,
+        lag(output_tokens) over (
+          partition by account_type, coalesce(session_file, '')
+          order by event_timestamp, event_iso, event_id
+        ) as previous_output_tokens,
+        lag(total_tokens) over (
+          partition by account_type, coalesce(session_file, '')
+          order by event_timestamp, event_iso, event_id
+        ) as previous_total_tokens
+      from codex_token_events
+      ${whereSql}
+    ), deduplicated as (
+      select *
+      from ordered
+      where previous_event_id is null
+        or input_tokens != previous_input_tokens
+        or cached_input_tokens != previous_cached_input_tokens
+        or output_tokens != previous_output_tokens
+        or total_tokens != previous_total_tokens
+    )
     select
       count(*) as request_count,
       coalesce(sum(input_tokens), 0) as input_tokens,
@@ -860,8 +997,7 @@ function summarizeCodexTokenRows(whereSql, params) {
       coalesce(sum(output_tokens), 0) as output_tokens,
       coalesce(sum(total_tokens), 0) as total_tokens,
       max(event_timestamp) as latest_event_at
-    from codex_token_events
-    ${whereSql}
+    from deduplicated
   `).get(...params);
   const inputTokens = Number(row.input_tokens || 0);
   const cached = Number(row.cached_input_tokens || 0);
@@ -876,6 +1012,12 @@ function summarizeCodexTokenRows(whereSql, params) {
     cacheHitRate: inputTokens ? (cached / inputTokens) * 100 : undefined,
     latestLogAt: row.latest_event_at ? timestampToIso(row.latest_event_at) : undefined
   };
+}
+
+function getLatestCodexEventAt(accountType) {
+  const row = database.prepare('select max(event_timestamp) as latest from codex_token_events where account_type = ?').get(accountType);
+  const latest = Number(row?.latest);
+  return Number.isFinite(latest) && latest > 0 ? latest : undefined;
 }
 
 function saveCodexTokenEvent(event, rawEvent) {
@@ -1069,7 +1211,25 @@ function getLatestCodexActivity() {
     return { status: 'unknown', label: '未读取到 Codex 会话', needsHumanAttention: false, completedTask: false };
   }
   try {
-    return { ...parseCodexActivity(latestFile), sessionFile: latestFile };
+    const stat = fs.statSync(latestFile);
+    if (
+      codexActivityCache.path === latestFile &&
+      codexActivityCache.size === stat.size &&
+      codexActivityCache.mtimeMs === stat.mtimeMs &&
+      codexActivityCache.activity
+    ) {
+      const activity = settleCodexActivity(codexActivityCache.activity, stat);
+      codexActivityCache.activity = activity;
+      return activity;
+    }
+    const activity = settleCodexActivity({ ...parseCodexActivity(latestFile), sessionFile: latestFile }, stat);
+    Object.assign(codexActivityCache, {
+      path: latestFile,
+      size: stat.size,
+      mtimeMs: stat.mtimeMs,
+      activity
+    });
+    return activity;
   } catch (error) {
     return { status: 'unknown', label: errorMessage(error), needsHumanAttention: false, completedTask: false, sessionFile: latestFile };
   }
@@ -1102,7 +1262,26 @@ function parseCodexActivity(sessionFile) {
       completedTask: Boolean(update.completedTask)
     };
   }
-  return activity || { status: 'finished', label: '空闲', needsHumanAttention: false, completedTask: false };
+  return activity || { status: 'unknown', label: '状态未知', needsHumanAttention: false, completedTask: false };
+}
+
+function settleCodexActivity(activity, stat, nowMs = Date.now()) {
+  if (!activity || activity.needsHumanAttention) return activity;
+  if (!['thinking', 'executing', 'answering'].includes(activity.status)) return activity;
+  const eventMs = (parseIsoTimestamp(String(activity.timestamp || '')) || 0) * 1000;
+  const fileMs = Number(stat?.mtimeMs || 0);
+  const latestMs = Math.max(eventMs, fileMs);
+  if (!Number.isFinite(latestMs) || latestMs <= 0 || nowMs - latestMs < CODEX_ACTIVITY_STALE_MS) {
+    return activity;
+  }
+  return {
+    ...activity,
+    status: 'finished',
+    label: codexActivityLabel('finished', false),
+    needsHumanAttention: false,
+    completedTask: true,
+    stale: true
+  };
 }
 
 function codexActivityUpdate(event, state) {
@@ -1176,41 +1355,119 @@ function findLatestCodexSessionFile() {
 function recentCodexSessionFiles(limit = 80) {
   const files = [];
   walkFiles(paths.codexSessions, (filePath) => {
-    if (filePath.endsWith('.jsonl')) files.push(filePath);
+    if (!filePath.endsWith('.jsonl')) return;
+    try {
+      files.push({ path: filePath, mtimeMs: fs.statSync(filePath).mtimeMs });
+    } catch {}
   });
-  files.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
-  return files.slice(0, Math.max(1, limit));
+  files.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return files.slice(0, Math.max(1, limit)).map((file) => file.path);
 }
 
-function readLatestCodexTokenEvent(sessionFile) {
-  let cachedOffset = Number(codexTokenEventCache.offset || 0);
-  let latestEvent = codexTokenEventCache.latestEvent;
+function syncTodayCodexTokenEvents() {
+  if (!paths?.codexSessions || !fs.existsSync(paths.codexSessions)) return;
+  const accountType = getCodexAccountType();
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  const dayStartMs = dayStart.getTime();
+  for (const sessionFile of recentCodexSessionFiles(500)) {
+    let stat;
+    try {
+      stat = fs.statSync(sessionFile);
+    } catch {
+      continue;
+    }
+    if (stat.mtimeMs < dayStartMs) continue;
+    let content;
+    try {
+      content = fs.readFileSync(sessionFile, 'utf8');
+    } catch {
+      continue;
+    }
+    const contentLines = content.split(/\r?\n/);
+    const remainder = /\r?\n$/.test(content) ? '' : contentLines.at(-1) || '';
+    const newEvents = parseCodexTokenEvents(content);
+    for (const rawEvent of newEvents) {
+      saveCodexTokenEvent(buildCodexTokenEvent(rawEvent, sessionFile, accountType), rawEvent);
+    }
+    codexTokenFileCaches.set(sessionFile, {
+      offset: Buffer.byteLength(content),
+      remainder,
+      latestEvent: newEvents.at(-1) || null,
+      lastUsageFingerprint: codexTokenUsageFingerprint(newEvents.at(-1))
+    });
+  }
+}
+
+function readNewCodexTokenEvents(sessionFile) {
+  const cached = codexTokenFileCaches.get(sessionFile) || {
+    offset: 0,
+    remainder: '',
+    latestEvent: null,
+    lastUsageFingerprint: ''
+  };
+  let cachedOffset = Number(cached.offset || 0);
+  let latestEvent = cached.latestEvent;
+  let remainder = String(cached.remainder || '');
+  let lastUsageFingerprint = String(cached.lastUsageFingerprint || '');
   const size = fs.statSync(sessionFile).size;
-  if (codexTokenEventCache.path !== sessionFile || size < cachedOffset) {
+  if (size < cachedOffset) {
     cachedOffset = 0;
     latestEvent = null;
+    remainder = '';
+    lastUsageFingerprint = '';
   }
   const fd = fs.openSync(sessionFile, 'r');
   try {
     const buffer = Buffer.alloc(Math.max(0, size - cachedOffset));
     fs.readSync(fd, buffer, 0, buffer.length, cachedOffset);
-    for (const line of buffer.toString('utf8').split(/\r?\n/)) {
-      if (!line.includes('"token_count"')) continue;
-      let event;
-      try {
-        event = JSON.parse(line);
-      } catch {
-        continue;
-      }
-      if (event.payload?.type === 'token_count') latestEvent = event;
+    const chunk = remainder + buffer.toString('utf8');
+    const endsWithNewline = /\r?\n$/.test(chunk);
+    const lines = chunk.split(/\r?\n/);
+    remainder = endsWithNewline ? '' : lines.pop() || '';
+    const parsedEvents = parseCodexTokenEvents(lines.join('\n'));
+    const newEvents = [];
+    for (const event of parsedEvents) {
+      const fingerprint = codexTokenUsageFingerprint(event);
+      if (fingerprint && fingerprint === lastUsageFingerprint) continue;
+      newEvents.push(event);
+      lastUsageFingerprint = fingerprint;
     }
-    codexTokenEventCache.path = sessionFile;
-    codexTokenEventCache.offset = size;
-    codexTokenEventCache.latestEvent = latestEvent;
-    return latestEvent;
+    if (newEvents.length > 0) latestEvent = newEvents.at(-1);
+    codexTokenFileCaches.set(sessionFile, { offset: size, remainder, latestEvent, lastUsageFingerprint });
+    return { latestEvent, newEvents };
   } finally {
     fs.closeSync(fd);
   }
+}
+
+function parseCodexTokenEvents(content) {
+  const events = [];
+  let lastUsageFingerprint = '';
+  for (const line of String(content || '').split(/\r?\n/)) {
+    if (!line.includes('"token_count"')) continue;
+    try {
+      const event = JSON.parse(line);
+      if (event.payload?.type !== 'token_count') continue;
+      const fingerprint = codexTokenUsageFingerprint(event);
+      if (fingerprint && fingerprint === lastUsageFingerprint) continue;
+      events.push(event);
+      lastUsageFingerprint = fingerprint;
+    } catch {}
+  }
+  return events;
+}
+
+function codexTokenUsageFingerprint(event) {
+  const usage = event?.payload?.info?.last_token_usage;
+  if (!usage || typeof usage !== 'object') return '';
+  return [
+    numberOrZero(usage.input_tokens),
+    numberOrZero(usage.cached_input_tokens),
+    numberOrZero(usage.output_tokens),
+    numberOrZero(usage.total_tokens),
+    numberOrZero(usage.reasoning_output_tokens)
+  ].join(':');
 }
 
 function recentSessionLines(sessionFile, maxBytes) {
@@ -1921,6 +2178,8 @@ module.exports = {
     summarizeLogRows,
     normalizeCodexRateLimits,
     parseCodexConfig,
+    parseCodexTokenEvents,
+    settleCodexActivity,
     makeSyncKey,
     keyFingerprint
   }

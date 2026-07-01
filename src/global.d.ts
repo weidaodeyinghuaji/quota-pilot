@@ -41,6 +41,10 @@ declare global {
         ready?: boolean;
       }) => void): () => void;
       onPositionChanged(callback: (position: { x: number; y: number }) => void): () => void;
+      onDataInvalidated(callback: () => void): () => void;
+      publishLiveData(payload: Record<string, unknown>): void;
+      requestLiveData(): void;
+      onLiveData(callback: (payload: any) => void): () => void;
     };
   }
 }

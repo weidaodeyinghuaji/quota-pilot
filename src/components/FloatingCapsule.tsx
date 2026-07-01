@@ -60,7 +60,10 @@ function getSignalState(activity: ProviderSnapshot['activity'] | undefined) {
   if (status === 'finished') {
     return { red: false, yellow: false, green: true, breath: false, label };
   }
-  return { red: false, yellow: false, green: true, breath: false, label: label || '状态未知' };
+  if (status === 'unknown' || !status) {
+    return { red: false, yellow: false, green: false, breath: false, label: label || '状态未知' };
+  }
+  return { red: false, yellow: false, green: false, breath: false, label };
 }
 
 function fallbackActivityLabel(status?: string) {

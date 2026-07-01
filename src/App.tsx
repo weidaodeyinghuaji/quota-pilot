@@ -4,13 +4,13 @@ import DraggableCapsule from './components/DraggableCapsule';
 import FloatingCapsule from './components/FloatingCapsule';
 import SettingsPage from './components/SettingsPage';
 import SpendToast from './components/SpendToast';
-import { fetchCodexStatus } from './lib/codexStatusStore.mjs';
+import { fetchCodexOverview } from './lib/codexOverviewStore.mjs';
 import { selectPrimarySnapshot } from './lib/display.mjs';
 import { diagnoseNewApiAccount, fetchLocalLogSummary, syncLocalNewApiLogs } from './lib/localLogStore.mjs';
 import { canUseNewApiLocalData } from './lib/newApiClient.mjs';
 import { buildSnapshots } from './lib/snapshotFactory.mjs';
-import { fetchCodexTokenSummary, fetchLatestCodexTokenUsage } from './lib/spendEvents.mjs';
 import { estimateTokenCost } from './lib/pricing.mjs';
+import { createRefreshCoordinator } from './lib/refreshCoordinator.mjs';
 import { APP_VERSION, checkLatestRelease, GITHUB_RELEASES_URL } from './lib/updateChecker.mjs';
 import type { UpdateCheckState } from './types/settings';
 import {
@@ -34,6 +34,8 @@ export default function App() {
   const isSettingsWindow = urlParams.get('view') === 'settings';
   const isDetailWindow = urlParams.get('view') === 'detail';
   const isUpdateWindow = urlParams.get('view') === 'update';
+  const isDesktopShell = typeof window !== 'undefined' && Boolean(window.codexQuotaDesktop);
+  const shouldRunBackgroundData = !isSettingsWindow && !isUpdateWindow && (!isDetailWindow || !isDesktopShell);
   const autoDownloadRequested = urlParams.get('download') === '1';
   const [settings, setSettings] = React.useState(() => loadAppSettings());
   const [newApiSnapshot, setNewApiSnapshot] = React.useState(null);
@@ -73,9 +75,7 @@ export default function App() {
   });
   const activeSnapshot = selectPrimarySnapshot(snapshots);
   const shouldUseNewApiAutomation =
-    codexStatusLoaded && codexStatus?.accountType !== 'official_login' && canUseNewApiLocalData(settings.newApi);
-  const shouldPollCodexToken = codexStatusLoaded;
-  const shouldPollCodexStatusFast = codexStatusLoaded;
+    shouldRunBackgroundData && codexStatusLoaded && codexStatus?.accountType !== 'official_login' && canUseNewApiLocalData(settings.newApi);
 
   React.useEffect(() => {
     saveAppSettings(undefined, settings);
@@ -141,9 +141,10 @@ export default function App() {
   }, [detailOpen, isDesktopCapsule]);
 
   React.useEffect(() => {
-    if (!codexStatusLoaded || codexStatus?.accountType !== 'api') return;
+    if (isDetailWindow || !codexStatusLoaded || codexStatus?.accountType !== 'api') return;
     setSettings((current) => selectProviderForCodexStatus(current, codexStatus));
   }, [
+    isDetailWindow,
     codexStatusLoaded,
     codexStatus?.accountType,
     codexStatus?.apiKeyFingerprint,
@@ -153,60 +154,90 @@ export default function App() {
   React.useEffect(() => {
     let active = true;
     let timer: ReturnType<typeof window.setInterval> | undefined;
-    const refresh = () => {
-      fetchCodexStatus()
-        .then((status) => {
-          if (active) {
-            setCodexStatus(status ?? null);
-            setCodexStatusLoaded(true);
-          }
-        })
-        .catch(() => {
-          if (active) {
-            setCodexStatus(null);
-            setCodexStatusLoaded(true);
-          }
-        });
-    };
-    refresh();
-    timer = window.setInterval(refresh, 30_000);
-    return () => {
-      active = false;
-      if (timer) window.clearInterval(timer);
-    };
-  }, []);
-
-  React.useEffect(() => {
-    let active = true;
-    let timer: ReturnType<typeof window.setInterval> | undefined;
-
-    if (!shouldPollCodexStatusFast) {
+    if (!shouldRunBackgroundData) {
       return () => {
         active = false;
       };
     }
 
-    const refresh = () => {
-      fetchCodexStatus()
-        .then((status) => {
-          if (active) {
-            setCodexStatus(status ?? null);
-            setCodexStatusLoaded(true);
-          }
-        })
-        .catch(() => {});
+    const refresh = async () => {
+      try {
+        const overview = await fetchCodexOverview();
+        if (!active || !overview) return;
+        if (overview.status) setCodexStatus(overview.status);
+        if (overview.tokenSummary) setCodexTokenSummary(overview.tokenSummary);
+
+        const event = overview.latestToken;
+        const estimatedEvent = event?.id ? enrichSpendEventWithEstimate(event, settings.pricingProfile) : null;
+        if (estimatedEvent) setLatestCodexTokenEvent(estimatedEvent);
+        if (!event?.id || event.id === seenSpendEventIdRef.current) return;
+        seenSpendEventIdRef.current = event.id;
+        setSpendEvent(estimatedEvent);
+      } finally {
+        if (active) setCodexStatusLoaded(true);
+      }
     };
 
-    const intervalMs = Math.max(1, Number(settings.newApi.codexTokenPollIntervalSeconds) || 2) * 1000;
-    timer = window.setInterval(refresh, intervalMs);
+    const coordinator = createRefreshCoordinator(refresh);
+    coordinator.trigger();
+    const intervalMs = Math.max(5, Number(settings.newApi.codexTokenPollIntervalSeconds) || 5) * 1000;
+    timer = window.setInterval(() => coordinator.trigger(), intervalMs);
+    const unsubscribeInvalidated = isDesktopCapsule
+      ? window.codexQuotaDesktop?.onDataInvalidated?.(() => coordinator.trigger())
+      : undefined;
 
     return () => {
       active = false;
+      coordinator.dispose();
+      unsubscribeInvalidated?.();
       if (timer) window.clearInterval(timer);
     };
   }, [
+    isDesktopCapsule,
     settings.newApi.codexTokenPollIntervalSeconds,
-    shouldPollCodexStatusFast
+    settings.pricingProfile,
+    shouldRunBackgroundData
+  ]);
+
+  React.useEffect(() => {
+    if (!isDetailWindow || !window.codexQuotaDesktop?.onLiveData) return undefined;
+    const unsubscribe = window.codexQuotaDesktop.onLiveData((payload) => {
+      if (!payload || typeof payload !== 'object') return;
+      setNewApiSnapshot(payload.newApiSnapshot ?? null);
+      setNewApiError(payload.newApiError ?? '');
+      setLocalLogSummary(payload.localLogSummary ?? null);
+      setLocalLogSync(payload.localLogSync ?? null);
+      setCodexStatus(payload.codexStatus ?? null);
+      setCodexStatusLoaded(Boolean(payload.codexStatusLoaded));
+      setLatestCodexTokenEvent(payload.latestCodexTokenEvent ?? null);
+      setCodexTokenSummary(payload.codexTokenSummary ?? null);
+    });
+    window.codexQuotaDesktop.requestLiveData?.();
+    return unsubscribe;
+  }, [isDetailWindow]);
+
+  React.useEffect(() => {
+    if (!isDesktopCapsule || !window.codexQuotaDesktop?.publishLiveData) return;
+    window.codexQuotaDesktop.publishLiveData({
+      newApiSnapshot,
+      newApiError,
+      localLogSummary,
+      localLogSync,
+      codexStatus,
+      codexStatusLoaded,
+      latestCodexTokenEvent,
+      codexTokenSummary
+    });
+  }, [
+    isDesktopCapsule,
+    newApiSnapshot,
+    newApiError,
+    localLogSummary,
+    localLogSync,
+    codexStatus,
+    codexStatusLoaded,
+    latestCodexTokenEvent,
+    codexTokenSummary
   ]);
 
   React.useEffect(() => {
@@ -338,56 +369,6 @@ export default function App() {
     settings.newApi.refreshIntervalSeconds,
     settings.pricingProfile,
     shouldUseNewApiAutomation
-  ]);
-
-  React.useEffect(() => {
-    let active = true;
-    let timer: ReturnType<typeof window.setInterval> | undefined;
-
-    if (!shouldPollCodexToken) {
-      return () => {
-        active = false;
-      };
-    }
-
-    const refresh = () => {
-      fetchLatestCodexTokenUsage()
-        .then((event) => {
-          if (!active) return;
-          const estimatedEvent = event?.id ? enrichSpendEventWithEstimate(event, settings.pricingProfile) : null;
-          if (estimatedEvent) {
-            setLatestCodexTokenEvent(estimatedEvent);
-          }
-          fetchCodexTokenSummary()
-            .then((summary) => {
-              if (active) setCodexTokenSummary(summary ?? null);
-            })
-            .catch(() => {});
-          if (!event?.id || event.id === seenSpendEventIdRef.current) return;
-          seenSpendEventIdRef.current = event.id;
-          setSpendEvent(estimatedEvent);
-        })
-        .catch(() => {
-          fetchCodexTokenSummary()
-            .then((summary) => {
-              if (active) setCodexTokenSummary(summary ?? null);
-            })
-            .catch(() => {});
-        });
-    };
-
-    refresh();
-    const intervalMs = Math.max(1, Number(settings.newApi.codexTokenPollIntervalSeconds) || 2) * 1000;
-    timer = window.setInterval(refresh, intervalMs);
-
-    return () => {
-      active = false;
-      if (timer) window.clearInterval(timer);
-    };
-  }, [
-    settings.newApi.codexTokenPollIntervalSeconds,
-    settings.pricingProfile,
-    shouldPollCodexToken
   ]);
 
   React.useEffect(() => {
@@ -823,4 +804,3 @@ function formatDiagnose(diagnose: any) {
   const tokenHash = diagnostics.tokenHashPrefix ?? diagnostics.apiKeyHashPrefix ?? '-';
   return `HTTP ${response.httpStatus}，${response.success === true ? '连接成功' : response.message || '连接失败'}，令牌长度 ${tokenLength}，Hash ${tokenHash}${dataKeys}`;
 }
-

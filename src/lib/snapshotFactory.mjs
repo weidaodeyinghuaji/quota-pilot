@@ -12,7 +12,8 @@ export function buildSnapshots(settings, now = new Date(), options = {}) {
       ? providerUsage
       : {};
   const tokenCost = estimateTokenCost(usageForEstimate, pricingProfile);
-  const balance = options.newApiError && !options.newApiSnapshot
+  const newApiError = options.newApiError ?? options.newApiSnapshot?.error;
+  const balance = newApiError && !options.newApiSnapshot
     ? null
     : resolveSnapshotBalance({
         snapshot: options.newApiSnapshot,
@@ -32,7 +33,8 @@ export function buildSnapshots(settings, now = new Date(), options = {}) {
         tokenCost,
         balance,
         updatedAt,
-        error: options.newApiError,
+        error: newApiError,
+        now,
         localLogSummary: options.localLogSummary,
         localLogSync: options.localLogSync,
         codexTokenSummary: {
@@ -46,7 +48,8 @@ export function buildSnapshots(settings, now = new Date(), options = {}) {
         tokenCost,
         balance,
         updatedAt,
-        error: options.newApiError,
+        error: newApiError,
+        now,
         localLogSummary: options.localLogSummary,
         localLogSync: options.localLogSync,
         codexTokenSummary: {
@@ -201,7 +204,7 @@ function resolveHistorySpend(snapshot) {
   return candidates[0];
 }
 
-function buildLocalNewApiSnapshot({ settings, tokenCost, balance, updatedAt, error, localLogSummary, localLogSync, codexTokenSummary }) {
+function buildLocalNewApiSnapshot({ settings, tokenCost, balance, updatedAt, error, now, localLogSummary, localLogSync, codexTokenSummary }) {
   const syncedAccount = resolveSyncedAccount(localLogSummary, localLogSync);
   return {
     providerId: 'new-api-main',
@@ -227,7 +230,7 @@ function buildLocalNewApiSnapshot({ settings, tokenCost, balance, updatedAt, err
       costSource: tokenCost.costSource
     },
     balance,
-    localLogs: buildLocalLogs(localLogSummary, localLogSync, codexTokenSummary, settings?.pricingProfile),
+    localLogs: buildLocalLogs(localLogSummary, localLogSync, codexTokenSummary, settings?.pricingProfile, { error, now }),
     accountSyncError: syncedAccount?.ok === false ? syncedAccount.message : undefined,
     status: error ? 'error' : 'ok',
     updatedAt,
@@ -235,7 +238,7 @@ function buildLocalNewApiSnapshot({ settings, tokenCost, balance, updatedAt, err
   };
 }
 
-function mergeNewApiSnapshot(snapshot, { settings, tokenCost, balance, updatedAt, error, localLogSummary, localLogSync, codexTokenSummary }) {
+function mergeNewApiSnapshot(snapshot, { settings, tokenCost, balance, updatedAt, error, now, localLogSummary, localLogSync, codexTokenSummary }) {
   const syncedAccount = resolveSyncedAccount(localLogSummary, localLogSync);
   return {
     ...snapshot,
@@ -263,7 +266,7 @@ function mergeNewApiSnapshot(snapshot, { settings, tokenCost, balance, updatedAt
       costSource: tokenCost.costSource
     },
     balance,
-    localLogs: buildLocalLogs(localLogSummary, localLogSync, codexTokenSummary, settings?.pricingProfile) ?? snapshot.localLogs,
+    localLogs: buildLocalLogs(localLogSummary, localLogSync, codexTokenSummary, settings?.pricingProfile, { error, now }) ?? snapshot.localLogs,
     accountSyncError: syncedAccount?.ok === false ? syncedAccount.message : snapshot.accountSyncError,
     status: error ? 'error' : snapshot.status ?? 'ok',
     updatedAt: snapshot.updatedAt ?? updatedAt,
@@ -271,16 +274,59 @@ function mergeNewApiSnapshot(snapshot, { settings, tokenCost, balance, updatedAt
   };
 }
 
-function buildLocalLogs(summary, sync, codexTokenSummary, pricingProfile) {
+function buildLocalLogs(summary, sync, codexTokenSummary, pricingProfile, options = {}) {
   if (!summary && !sync && !codexTokenSummary) return undefined;
+  const estimatedToday = enrichUsageWithEstimate(codexTokenSummary?.today, pricingProfile);
+  const estimatedAll = enrichUsageWithEstimate(codexTokenSummary?.all, pricingProfile);
+  const today = hasUsageRecords(summary?.today)
+    ? summary.today
+    : resolveLocalTodayFallback(summary?.today, estimatedToday, estimatedAll, codexTokenSummary, options);
   return {
-    today: enrichUsageWithEstimate(codexTokenSummary?.today, pricingProfile) ?? summary?.today,
-    all: summary?.all,
+    today,
+    all: hasUsageRecords(summary?.all) ? summary.all : estimatedAll ?? summary?.all,
     coverage: summary?.coverage,
     latestCreatedAt: summary?.latestCreatedAt,
     topup: sync?.topup ?? summary?.topup,
     sync: sync ?? summary?.sync
   };
+}
+
+function resolveLocalTodayFallback(summaryToday, estimatedToday, estimatedAll, codexTokenSummary, options) {
+  if (hasUsageRecords(estimatedToday)) return estimatedToday;
+  if (shouldUseCodexAllAsToday(codexTokenSummary, options) && hasUsageRecords(estimatedAll)) {
+    return estimatedAll;
+  }
+  return estimatedToday ?? summaryToday;
+}
+
+function shouldUseCodexAllAsToday(codexTokenSummary, options = {}) {
+  if (!isTokenInvalidError(options.error)) return false;
+  if (hasUsageRecords(codexTokenSummary?.today)) return false;
+  if (!hasUsageRecords(codexTokenSummary?.all)) return false;
+  return isSameLocalDay(codexTokenSummary?.latestEventAt, options.now);
+}
+
+function isTokenInvalidError(error) {
+  const text = String(error || '').toLowerCase();
+  return text.includes('unauthorized') || text.includes('invalid access token') || text.includes('http 401');
+}
+
+function isSameLocalDay(timestampSeconds, now = new Date()) {
+  const timestamp = Number(timestampSeconds);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return false;
+  const left = new Date(timestamp * 1000);
+  const right = now instanceof Date ? now : new Date(now);
+  if (Number.isNaN(left.getTime()) || Number.isNaN(right.getTime())) return false;
+  return left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate();
+}
+
+function hasUsageRecords(usage) {
+  if (Number(usage?.requestCount) > 0) return true;
+  return ['inputTokens', 'cachedInputTokens', 'outputTokens', 'totalTokens', 'rawUsedAmount'].some(
+    (key) => Number(usage?.[key]) > 0
+  );
 }
 
 function buildCodexLocalLogs(summary) {

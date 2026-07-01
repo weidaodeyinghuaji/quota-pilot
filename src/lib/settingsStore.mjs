@@ -37,7 +37,7 @@ export const DEFAULT_APP_SETTINGS = Object.freeze({
     newApiUser: '1',
     amountDisplayMode: 'cny',
     refreshIntervalSeconds: 30,
-    codexTokenPollIntervalSeconds: 2,
+    codexTokenPollIntervalSeconds: 5,
     platformSyncIntervalSeconds: 600,
     accountRefreshIntervalSeconds: 300,
     topupRefreshIntervalSeconds: 600,
@@ -167,7 +167,7 @@ function normalizeRefreshInterval(value) {
 function normalizeCodexTokenPollInterval(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return DEFAULT_APP_SETTINGS.newApi.codexTokenPollIntervalSeconds;
-  return Math.min(60, Math.max(1, Math.round(number)));
+  return Math.min(60, Math.max(5, Math.round(number)));
 }
 
 function normalizePlatformSyncInterval(value) {
@@ -544,8 +544,8 @@ function normalizeCapsulePosition(position) {
   const x = Number(position.x);
   const y = Number(position.y);
   return {
-    x: Number.isFinite(x) ? Math.max(0, Math.round(x)) : DEFAULT_APP_SETTINGS.window.capsulePosition.x,
-    y: Number.isFinite(y) ? Math.max(0, Math.round(y)) : DEFAULT_APP_SETTINGS.window.capsulePosition.y
+    x: Number.isFinite(x) ? Math.round(x) : DEFAULT_APP_SETTINGS.window.capsulePosition.x,
+    y: Number.isFinite(y) ? Math.round(y) : DEFAULT_APP_SETTINGS.window.capsulePosition.y
   };
 }
 

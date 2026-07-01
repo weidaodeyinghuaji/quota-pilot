@@ -144,6 +144,9 @@ function numberOrDefault(value, fallback) {
 }
 
 function preferUsage(snapshot) {
+  if (snapshot.localLogs?.today && Number(snapshot.localLogs.today.requestCount) > 0) {
+    return snapshot.localLogs.today;
+  }
   if (snapshot.usage?.log && Number(snapshot.usage.log.requestCount) > 0) {
     return snapshot.usage.log;
   }

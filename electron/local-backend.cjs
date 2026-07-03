@@ -8,6 +8,11 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
 const { DatabaseSync } = require('node:sqlite');
+const {
+  applyCodexRuntimeObservation,
+  confirmQuotaReminder,
+  isQuotaReminderPending
+} = require('./codex-runtime-state.cjs');
 
 const HOST = '127.0.0.1';
 const PORT = 1420;
@@ -332,6 +337,15 @@ function initDb() {
       raw_json text
     );
     create index if not exists idx_codex_token_events_account_time on codex_token_events(account_type, event_timestamp);
+    create table if not exists codex_runtime_state (
+      id integer primary key check (id = 1),
+      last_account_type text,
+      api_spend_started_at integer,
+      last_official_remaining_percent real,
+      waiting_reset_at integer,
+      confirmed_reset_at integer
+    );
+    insert or ignore into codex_runtime_state (id) values (1);
   `);
   ensureColumn('newapi_sync_state', 'fail_count', 'integer default 0');
   ensureColumn('newapi_sync_state', 'blocked_until', 'integer');
@@ -346,6 +360,40 @@ function ensureColumn(table, column, definition) {
   if (!columns.has(column)) {
     database.exec(`alter table ${table} add column ${column} ${definition}`);
   }
+}
+
+function readCodexRuntimeState() {
+  const row = database.prepare(`
+    select last_account_type, api_spend_started_at, last_official_remaining_percent,
+      waiting_reset_at, confirmed_reset_at
+    from codex_runtime_state where id = 1
+  `).get() || {};
+  return {
+    lastAccountType: stringOrUndefined(row.last_account_type),
+    apiSpendStartedAt: numberOrUndefined(row.api_spend_started_at),
+    lastOfficialRemainingPercent: numberOrUndefined(row.last_official_remaining_percent),
+    waitingResetAt: numberOrUndefined(row.waiting_reset_at),
+    confirmedResetAt: numberOrUndefined(row.confirmed_reset_at)
+  };
+}
+
+function writeCodexRuntimeState(state = {}) {
+  database.prepare(`
+    update codex_runtime_state set
+      last_account_type = ?,
+      api_spend_started_at = ?,
+      last_official_remaining_percent = ?,
+      waiting_reset_at = ?,
+      confirmed_reset_at = ?
+    where id = 1
+  `).run(
+    state.lastAccountType ?? null,
+    state.apiSpendStartedAt ?? null,
+    state.lastOfficialRemainingPercent ?? null,
+    state.waitingResetAt ?? null,
+    state.confirmedResetAt ?? null
+  );
+  return state;
 }
 
 async function serveStatic(requestUrl, response) {

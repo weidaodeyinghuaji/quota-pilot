@@ -8,6 +8,9 @@ const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.me
 assert.match(backendSource, /require\('node:sqlite'\)/);
 assert.match(backendSource, /create table if not exists newapi_logs/);
 assert.match(backendSource, /create table if not exists codex_token_events/);
+assert.match(backendSource, /create table if not exists codex_runtime_state/);
+assert.match(backendSource, /function readCodexRuntimeState/);
+assert.match(backendSource, /function writeCodexRuntimeState/);
 assert.match(backendSource, /syncTodayCodexTokenEvents/);
 assert.match(backendSource, /for \(const rawEvent of newEvents\)[\s\S]*saveCodexTokenEvent/);
 assert.match(backendSource, /function getLatestCodexEventAt\(accountType\)/);

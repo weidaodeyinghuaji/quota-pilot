@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { eventFromInsertedUsage, normalizeCodexTokenPayload } from '../src/lib/spendEvents.mjs';
+import { eventFromInsertedUsage, normalizeCodexTokenPayload, normalizeCodexTokenSummary } from '../src/lib/spendEvents.mjs';
 
 const codexEvent = normalizeCodexTokenPayload(
   {
@@ -64,5 +64,16 @@ assert.equal(newApiEvent.outputTokens, 1000);
 assert.equal(newApiEvent.costAmount, 0.5);
 
 assert.equal(eventFromInsertedUsage({ requestCount: 0 }), undefined);
+
+const summary = normalizeCodexTokenSummary({
+  ok: true,
+  today: { requestCount: 4, totalTokens: 400 },
+  all: { requestCount: 10, totalTokens: 1000 },
+  apiSpendToday: { requestCount: 2, totalTokens: 150 },
+  apiSpendStartedAt: 1783065600
+});
+assert.equal(summary.today.totalTokens, 400);
+assert.equal(summary.apiSpendToday.totalTokens, 150);
+assert.equal(summary.apiSpendStartedAt, 1783065600);
 
 console.log('spend event tests passed');

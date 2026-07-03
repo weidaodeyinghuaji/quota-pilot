@@ -191,6 +191,16 @@ async function handleRequest(request, response) {
 }
 
 async function getCodexOverview() {
+  const status = await getCodexStatus().catch((error) => ({ ok: false, message: errorMessage(error) }));
+  if (status?.accountType) {
+    const runtime = applyCodexRuntimeObservation(readCodexRuntimeState(), {
+      accountType: status.accountType,
+      now: unixNow(),
+      quota: status.quota?.window5h
+    });
+    writeCodexRuntimeState(runtime);
+  }
+
   let latestToken;
   try {
     latestToken = getLatestCodexTokenUsage();
@@ -198,12 +208,9 @@ async function getCodexOverview() {
     latestToken = { ok: false, available: false, message: errorMessage(error) };
   }
 
-  const [status, tokenSummary] = await Promise.all([
-    getCodexStatus().catch((error) => ({ ok: false, message: errorMessage(error) })),
-    Promise.resolve()
-      .then(() => getCodexTokenSummary())
-      .catch((error) => ({ ok: false, message: errorMessage(error) }))
-  ]);
+  const tokenSummary = await Promise.resolve()
+    .then(() => getCodexTokenSummary())
+    .catch((error) => ({ ok: false, message: errorMessage(error) }));
   return { ok: true, status, latestToken, tokenSummary };
 }
 
@@ -985,20 +992,27 @@ function buildCodexTokenEvent(rawEvent, sessionFile, accountType = getCodexAccou
 }
 
 function getCodexTokenSummary(context = {}) {
-  const accountType = String(context.accountType || getCodexAccountType());
-  const now = new Date();
+  const now = context.now instanceof Date ? context.now : new Date();
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
   const start = Math.floor(dayStart.getTime() / 1000);
   const dayEnd = new Date(dayStart);
   dayEnd.setDate(dayEnd.getDate() + 1);
   const end = Math.floor(dayEnd.getTime() / 1000);
+  const runtime = readCodexRuntimeState();
+  const apiSpendStartedAt = numberOrUndefined(runtime.apiSpendStartedAt);
+  const apiStart = Math.max(start, apiSpendStartedAt ?? start);
   return {
     ok: true,
-    accountType,
-    today: summarizeCodexTokenRows('where account_type = ? and event_timestamp >= ? and event_timestamp < ?', [accountType, start, end]),
-    all: summarizeCodexTokenRows('where account_type = ?', [accountType]),
-    latestEventAt: getLatestCodexEventAt(accountType)
+    accountType: runtime.lastAccountType || getCodexAccountType(),
+    today: summarizeCodexTokenRows('where event_timestamp >= ? and event_timestamp < ?', [start, end]),
+    all: summarizeCodexTokenRows('', []),
+    apiSpendToday: summarizeCodexTokenRows(
+      "where account_type = 'api' and event_timestamp >= ? and event_timestamp < ?",
+      [apiStart, end]
+    ),
+    apiSpendStartedAt,
+    latestEventAt: getLatestCodexEventAt()
   };
 }
 
@@ -1029,8 +1043,8 @@ function summarizeCodexTokenRows(whereSql, params) {
   };
 }
 
-function getLatestCodexEventAt(accountType) {
-  const row = database.prepare('select max(event_timestamp) as latest from codex_token_events where account_type = ?').get(accountType);
+function getLatestCodexEventAt() {
+  const row = database.prepare('select max(event_timestamp) as latest from codex_token_events').get();
   const latest = Number(row?.latest);
   return Number.isFinite(latest) && latest > 0 ? latest : undefined;
 }

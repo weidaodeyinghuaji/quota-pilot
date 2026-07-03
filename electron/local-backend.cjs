@@ -175,6 +175,13 @@ async function handleRequest(request, response) {
     sendJson(response, 200, await getCodexOverview());
     return;
   }
+  if (request.method === 'POST' && requestUrl.pathname === '/local-api/codex/quota-reminder/confirm') {
+    const payload = await readJson(request);
+    const next = confirmQuotaReminder(readCodexRuntimeState(), payload.resetAt);
+    writeCodexRuntimeState(next);
+    sendJson(response, 200, { ok: true, quotaReminder: buildQuotaReminder(next) });
+    return;
+  }
   if (request.method === 'GET' && requestUrl.pathname === '/local-api/codex/token/summary') {
     sendJson(response, 200, getCodexTokenSummary());
     return;
@@ -192,8 +199,9 @@ async function handleRequest(request, response) {
 
 async function getCodexOverview() {
   const status = await getCodexStatus().catch((error) => ({ ok: false, message: errorMessage(error) }));
+  let runtime = readCodexRuntimeState();
   if (status?.accountType) {
-    const runtime = applyCodexRuntimeObservation(readCodexRuntimeState(), {
+    runtime = applyCodexRuntimeObservation(runtime, {
       accountType: status.accountType,
       now: unixNow(),
       quota: status.quota?.window5h
@@ -211,7 +219,14 @@ async function getCodexOverview() {
   const tokenSummary = await Promise.resolve()
     .then(() => getCodexTokenSummary())
     .catch((error) => ({ ok: false, message: errorMessage(error) }));
-  return { ok: true, status, latestToken, tokenSummary };
+  return { ok: true, status, latestToken, tokenSummary, quotaReminder: buildQuotaReminder(runtime) };
+}
+
+function buildQuotaReminder(runtime = readCodexRuntimeState()) {
+  return {
+    pending: isQuotaReminderPending(runtime, unixNow()),
+    resetAt: runtime.waitingResetAt
+  };
 }
 
 async function getLatestRelease() {

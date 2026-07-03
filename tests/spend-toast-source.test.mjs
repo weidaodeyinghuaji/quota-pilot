@@ -14,5 +14,6 @@ assert.doesNotMatch(source, /event\.source !== 'codex'/);
 assert.match(source, /symbol = '¥'/);
 assert.doesNotMatch(source, /uncachedInputTokens[^?]/);
 assert.doesNotMatch(source, /Token 已更新/);
+assert.doesNotMatch(source, /localLogs/);
 
 console.log('spend toast source tests passed');

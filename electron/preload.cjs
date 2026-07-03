@@ -16,6 +16,12 @@ contextBridge.exposeInMainWorld('codexQuotaDesktop', {
   setToastOpen(open) {
     ipcRenderer.send('desktop-toast-open', Boolean(open));
   },
+  openQuotaRecoveryReminder(payload) {
+    return ipcRenderer.invoke('desktop-quota-recovery-open', payload);
+  },
+  confirmQuotaRecoveryReminder() {
+    ipcRenderer.send('desktop-quota-recovery-confirm');
+  },
   updateLayout(layout) {
     ipcRenderer.send('desktop-layout-update', layout);
   },

@@ -8,6 +8,8 @@ declare global {
       dragEnd(): void;
       setDetailOpen(open: boolean): void;
       setToastOpen(open: boolean): void;
+      openQuotaRecoveryReminder(payload: { resetAt: number }): Promise<'confirmed' | 'dismissed'>;
+      confirmQuotaRecoveryReminder(): void;
       updateLayout(layout: {
         capsule: { x: number; y: number; width: number; height: number };
         toast?: { height: number };

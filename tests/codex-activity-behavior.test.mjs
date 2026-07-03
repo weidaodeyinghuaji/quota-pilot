@@ -5,6 +5,7 @@ const require = createRequire(import.meta.url);
 const { _internals } = require('../electron/local-backend.cjs');
 
 assert.equal(typeof _internals.settleCodexActivity, 'function');
+assert.equal(typeof _internals.codexActivityUpdate, 'function');
 
 const nowMs = Date.parse('2026-07-01T12:00:00.000Z');
 
@@ -36,11 +37,28 @@ assert.equal(waitingForUser.status, 'waiting_for_user');
 assert.equal(waitingForUser.needsHumanAttention, true);
 
 const freshThinking = _internals.settleCodexActivity(
-  { status: 'thinking', label: 'thinking', timestamp: '2026-07-01T11:59:45.000Z', needsHumanAttention: false },
-  { mtimeMs: nowMs - 15_000 },
+  { status: 'thinking', label: 'thinking', timestamp: '2026-07-01T11:59:46.000Z', needsHumanAttention: false },
+  { mtimeMs: nowMs - 14_000 },
   nowMs
 );
 
 assert.equal(freshThinking.status, 'thinking');
+
+const completed = _internals.codexActivityUpdate(
+  { timestamp: '2026-07-03T08:00:00.200Z', type: 'event_msg', payload: { type: 'task_complete' } },
+  {
+    isInsideTurn: true,
+    waitingForPlanChoice: false,
+    lastFinalAnswerAt: Date.parse('2026-07-03T08:00:00.000Z') / 1000
+  }
+);
+assert.equal(completed.status, 'finished');
+
+const staleAfter15Seconds = _internals.settleCodexActivity(
+  { status: 'thinking', timestamp: '2026-07-03T08:00:00.000Z', needsHumanAttention: false },
+  { mtimeMs: Date.parse('2026-07-03T08:00:00.000Z') },
+  Date.parse('2026-07-03T08:00:15.001Z')
+);
+assert.equal(staleAfter15Seconds.status, 'finished');
 
 console.log('codex activity behavior tests passed');

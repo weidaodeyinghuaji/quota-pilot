@@ -26,7 +26,7 @@ const TOPUP_CACHE_TTL_SECONDS = 10 * 60;
 const CODEX_SESSION_DISCOVERY_TTL_SECONDS = 5;
 const CODEX_RATE_LIMIT_CACHE_TTL_SECONDS = 60;
 const CODEX_SESSION_WATCH_DEBOUNCE_MS = 100;
-const CODEX_ACTIVITY_STALE_MS = 90 * 1000;
+const CODEX_ACTIVITY_STALE_MS = 15 * 1000;
 const GITHUB_LATEST_RELEASE_URL = 'https://github.com/akitten-cn/codex-quota-glance/releases/latest';
 const GITHUB_LATEST_RELEASE_API_URL = 'https://api.github.com/repos/akitten-cn/codex-quota-glance/releases/latest';
 
@@ -1317,7 +1317,6 @@ function codexActivityUpdate(event, state) {
   const eventType = String(event.type || '');
   const payload = event.payload && typeof event.payload === 'object' ? event.payload : {};
   const payloadType = String(payload.type || '');
-  const eventTs = parseIsoTimestamp(String(event.timestamp || ''));
   if (payload.phase === 'final_answer') return activityUpdate('thinking', false, state.waitingForPlanChoice, { isFinalAnswer: true });
   if (containsHumanWaitingSignal(payload) || containsHumanReviewSignal(payload)) {
     return activityUpdate('waiting_for_user', true, state.waitingForPlanChoice, { needsHumanAttention: true });
@@ -1327,7 +1326,6 @@ function codexActivityUpdate(event, state) {
   if (eventType === 'event_msg') {
     if (payloadType === 'task_started') return activityUpdate('thinking', true, false, { clearsFinalAnswer: true });
     if (payloadType === 'task_complete') {
-      if (shouldKeepFinalAnswerVisible(state.lastFinalAnswerAt, eventTs)) return activityUpdate('thinking', false, state.waitingForPlanChoice);
       if (state.waitingForPlanChoice) return activityUpdate('waiting_for_user', false, true, { needsHumanAttention: true });
       return activityUpdate('finished', false, false, { completedTask: true });
     }
@@ -2156,11 +2154,6 @@ function stringValues(value) {
   return [];
 }
 
-function shouldKeepFinalAnswerVisible(finalAnswerAt, taskCompleteAt) {
-  if (finalAnswerAt === null || finalAnswerAt === undefined || taskCompleteAt === null || taskCompleteAt === undefined) return false;
-  return taskCompleteAt - finalAnswerAt <= 1 && Date.now() / 1000 - taskCompleteAt < 1.5;
-}
-
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error || 'Unknown error');
 }
@@ -2183,6 +2176,7 @@ module.exports = {
     parseCodexConfig,
     parseCodexTokenEvents,
     settleCodexActivity,
+    codexActivityUpdate,
     makeSyncKey,
     keyFingerprint
   }

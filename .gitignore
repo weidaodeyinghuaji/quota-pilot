@@ -22,4 +22,5 @@ dev-server.*.log
 .DS_Store
 Thumbs.db
 .codex-signal-glance-ref/
+.worktrees/
 docs/superpowers/

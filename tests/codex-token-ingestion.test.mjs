@@ -14,8 +14,16 @@ const events = _internals.parseCodexTokenEvents([
   JSON.stringify({ timestamp: '2026-07-01T01:00:02.000Z', payload: { type: 'token_count', info: { last_token_usage: { input_tokens: 200 } } } })
 ].join('\n'));
 
-assert.equal(events.length, 2);
+assert.equal(events.length, 3);
 assert.equal(events[0].payload.info.last_token_usage.input_tokens, 100);
-assert.equal(events[1].payload.info.last_token_usage.input_tokens, 200);
+assert.equal(events[1].payload.info.last_token_usage.input_tokens, 100);
+assert.equal(events[2].payload.info.last_token_usage.input_tokens, 200);
+
+const identicalUsageEvents = _internals.parseCodexTokenEvents([
+  JSON.stringify({ timestamp: '2026-07-03T08:00:00.000Z', payload: { type: 'token_count', info: { last_token_usage: { input_tokens: 100, output_tokens: 20 } } } }),
+  JSON.stringify({ timestamp: '2026-07-03T08:00:01.000Z', payload: { type: 'token_count', info: { last_token_usage: { input_tokens: 100, output_tokens: 20 } } } })
+].join('\n'));
+
+assert.equal(identicalUsageEvents.length, 2);
 
 console.log('codex token ingestion tests passed');

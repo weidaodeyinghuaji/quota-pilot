@@ -956,40 +956,6 @@ function getCodexTokenSummary(context = {}) {
 
 function summarizeCodexTokenRows(whereSql, params) {
   const row = database.prepare(`
-    with ordered as (
-      select
-        *,
-        lag(event_id) over (
-          partition by account_type, coalesce(session_file, '')
-          order by event_timestamp, event_iso, event_id
-        ) as previous_event_id,
-        lag(input_tokens) over (
-          partition by account_type, coalesce(session_file, '')
-          order by event_timestamp, event_iso, event_id
-        ) as previous_input_tokens,
-        lag(cached_input_tokens) over (
-          partition by account_type, coalesce(session_file, '')
-          order by event_timestamp, event_iso, event_id
-        ) as previous_cached_input_tokens,
-        lag(output_tokens) over (
-          partition by account_type, coalesce(session_file, '')
-          order by event_timestamp, event_iso, event_id
-        ) as previous_output_tokens,
-        lag(total_tokens) over (
-          partition by account_type, coalesce(session_file, '')
-          order by event_timestamp, event_iso, event_id
-        ) as previous_total_tokens
-      from codex_token_events
-      ${whereSql}
-    ), deduplicated as (
-      select *
-      from ordered
-      where previous_event_id is null
-        or input_tokens != previous_input_tokens
-        or cached_input_tokens != previous_cached_input_tokens
-        or output_tokens != previous_output_tokens
-        or total_tokens != previous_total_tokens
-    )
     select
       count(*) as request_count,
       coalesce(sum(input_tokens), 0) as input_tokens,
@@ -997,7 +963,8 @@ function summarizeCodexTokenRows(whereSql, params) {
       coalesce(sum(output_tokens), 0) as output_tokens,
       coalesce(sum(total_tokens), 0) as total_tokens,
       max(event_timestamp) as latest_event_at
-    from deduplicated
+    from codex_token_events
+    ${whereSql}
   `).get(...params);
   const inputTokens = Number(row.input_tokens || 0);
   const cached = Number(row.cached_input_tokens || 0);
@@ -1393,8 +1360,7 @@ function syncTodayCodexTokenEvents() {
     codexTokenFileCaches.set(sessionFile, {
       offset: Buffer.byteLength(content),
       remainder,
-      latestEvent: newEvents.at(-1) || null,
-      lastUsageFingerprint: codexTokenUsageFingerprint(newEvents.at(-1))
+      latestEvent: newEvents.at(-1) || null
     });
   }
 }
@@ -1403,19 +1369,16 @@ function readNewCodexTokenEvents(sessionFile) {
   const cached = codexTokenFileCaches.get(sessionFile) || {
     offset: 0,
     remainder: '',
-    latestEvent: null,
-    lastUsageFingerprint: ''
+    latestEvent: null
   };
   let cachedOffset = Number(cached.offset || 0);
   let latestEvent = cached.latestEvent;
   let remainder = String(cached.remainder || '');
-  let lastUsageFingerprint = String(cached.lastUsageFingerprint || '');
   const size = fs.statSync(sessionFile).size;
   if (size < cachedOffset) {
     cachedOffset = 0;
     latestEvent = null;
     remainder = '';
-    lastUsageFingerprint = '';
   }
   const fd = fs.openSync(sessionFile, 'r');
   try {
@@ -1426,15 +1389,9 @@ function readNewCodexTokenEvents(sessionFile) {
     const lines = chunk.split(/\r?\n/);
     remainder = endsWithNewline ? '' : lines.pop() || '';
     const parsedEvents = parseCodexTokenEvents(lines.join('\n'));
-    const newEvents = [];
-    for (const event of parsedEvents) {
-      const fingerprint = codexTokenUsageFingerprint(event);
-      if (fingerprint && fingerprint === lastUsageFingerprint) continue;
-      newEvents.push(event);
-      lastUsageFingerprint = fingerprint;
-    }
+    const newEvents = parsedEvents;
     if (newEvents.length > 0) latestEvent = newEvents.at(-1);
-    codexTokenFileCaches.set(sessionFile, { offset: size, remainder, latestEvent, lastUsageFingerprint });
+    codexTokenFileCaches.set(sessionFile, { offset: size, remainder, latestEvent });
     return { latestEvent, newEvents };
   } finally {
     fs.closeSync(fd);
@@ -1443,31 +1400,15 @@ function readNewCodexTokenEvents(sessionFile) {
 
 function parseCodexTokenEvents(content) {
   const events = [];
-  let lastUsageFingerprint = '';
   for (const line of String(content || '').split(/\r?\n/)) {
     if (!line.includes('"token_count"')) continue;
     try {
       const event = JSON.parse(line);
       if (event.payload?.type !== 'token_count') continue;
-      const fingerprint = codexTokenUsageFingerprint(event);
-      if (fingerprint && fingerprint === lastUsageFingerprint) continue;
       events.push(event);
-      lastUsageFingerprint = fingerprint;
     } catch {}
   }
   return events;
-}
-
-function codexTokenUsageFingerprint(event) {
-  const usage = event?.payload?.info?.last_token_usage;
-  if (!usage || typeof usage !== 'object') return '';
-  return [
-    numberOrZero(usage.input_tokens),
-    numberOrZero(usage.cached_input_tokens),
-    numberOrZero(usage.output_tokens),
-    numberOrZero(usage.total_tokens),
-    numberOrZero(usage.reasoning_output_tokens)
-  ].join(':');
 }
 
 function recentSessionLines(sessionFile, maxBytes) {

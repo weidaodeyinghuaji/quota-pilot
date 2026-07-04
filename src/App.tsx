@@ -4,7 +4,8 @@ import DraggableCapsule from './components/DraggableCapsule';
 import FloatingCapsule from './components/FloatingCapsule';
 import SettingsPage from './components/SettingsPage';
 import SpendToast from './components/SpendToast';
-import { fetchCodexOverview } from './lib/codexOverviewStore.mjs';
+import QuotaRecoveryDialog from './components/QuotaRecoveryDialog';
+import { confirmCodexQuotaReminder, fetchCodexOverview } from './lib/codexOverviewStore.mjs';
 import { selectPrimarySnapshot } from './lib/display.mjs';
 import { diagnoseNewApiAccount, fetchLocalLogSummary, syncLocalNewApiLogs } from './lib/localLogStore.mjs';
 import { canUseNewApiLocalData } from './lib/newApiClient.mjs';
@@ -34,8 +35,9 @@ export default function App() {
   const isSettingsWindow = urlParams.get('view') === 'settings';
   const isDetailWindow = urlParams.get('view') === 'detail';
   const isUpdateWindow = urlParams.get('view') === 'update';
+  const isQuotaRecoveryWindow = urlParams.get('view') === 'quota-recovery';
   const isDesktopShell = typeof window !== 'undefined' && Boolean(window.codexQuotaDesktop);
-  const shouldRunBackgroundData = !isSettingsWindow && !isUpdateWindow && (!isDetailWindow || !isDesktopShell);
+  const shouldRunBackgroundData = !isSettingsWindow && !isUpdateWindow && !isQuotaRecoveryWindow && (!isDetailWindow || !isDesktopShell);
   const autoDownloadRequested = urlParams.get('download') === '1';
   const [settings, setSettings] = React.useState(() => loadAppSettings());
   const [newApiSnapshot, setNewApiSnapshot] = React.useState(null);
@@ -51,6 +53,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = React.useState(() => isSettingsWindow);
   const [latestCodexTokenEvent, setLatestCodexTokenEvent] = React.useState(null);
   const [codexTokenSummary, setCodexTokenSummary] = React.useState(null);
+  const [quotaReminder, setQuotaReminder] = React.useState(null);
   const seenSpendEventIdRef = React.useRef('');
   const [newApiError, setNewApiError] = React.useState('');
   const [updateCheckState, setUpdateCheckState] = React.useState<UpdateCheckState>({
@@ -166,6 +169,7 @@ export default function App() {
         if (!active || !overview) return;
         if (overview.status) setCodexStatus(overview.status);
         if (overview.tokenSummary) setCodexTokenSummary(overview.tokenSummary);
+        setQuotaReminder(overview.quotaReminder ?? null);
 
         const event = overview.latestToken;
         const estimatedEvent = event?.id ? enrichSpendEventWithEstimate(event, settings.pricingProfile) : null;
@@ -198,6 +202,23 @@ export default function App() {
     settings.pricingProfile,
     shouldRunBackgroundData
   ]);
+
+  React.useEffect(() => {
+    if (!isDesktopCapsule || !quotaReminder?.pending || !quotaReminder.resetAt) return undefined;
+    let cancelled = false;
+    window.codexQuotaDesktop?.openQuotaRecoveryReminder({ resetAt: quotaReminder.resetAt })
+      .then(async (result) => {
+        if (cancelled || result !== 'confirmed') return;
+        const confirmed = await confirmCodexQuotaReminder(quotaReminder.resetAt);
+        if (!confirmed || cancelled) return;
+        setQuotaReminder((current) => current?.resetAt === quotaReminder.resetAt
+          ? { ...current, pending: false }
+          : current);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isDesktopCapsule, quotaReminder]);
 
   React.useEffect(() => {
     if (!isDetailWindow || !window.codexQuotaDesktop?.onLiveData) return undefined;
@@ -426,6 +447,10 @@ export default function App() {
       rawRequest: diagnose?.request?.rawHttpRequest ?? ''
     });
   }, [settings.newApi]);
+
+  if (isQuotaRecoveryWindow) {
+    return <QuotaRecoveryDialog />;
+  }
 
   if (isUpdateWindow) {
     return (

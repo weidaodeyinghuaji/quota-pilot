@@ -6,7 +6,7 @@ const settingsSource = readFileSync(new URL('../src/lib/settingsStore.mjs', impo
 
 assert.match(settingsSource, /codexTokenPollIntervalSeconds:\s*5/);
 assert.match(source, /settings\.newApi\.codexTokenPollIntervalSeconds/);
-assert.match(source, /const shouldRunBackgroundData = !isSettingsWindow && !isUpdateWindow && \(!isDetailWindow \|\| !isDesktopShell\);/);
+assert.match(source, /const shouldRunBackgroundData = !isSettingsWindow && !isUpdateWindow && !isQuotaRecoveryWindow && \(!isDetailWindow \|\| !isDesktopShell\);/);
 assert.match(source, /shouldRunBackgroundData && codexStatusLoaded/);
 assert.match(source, /Math\.max\(5,\s*Number\(settings\.newApi\.codexTokenPollIntervalSeconds\)/);
 assert.doesNotMatch(source, /fetchLatestCodexTokenUsage/);

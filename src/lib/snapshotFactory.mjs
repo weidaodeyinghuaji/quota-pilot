@@ -6,11 +6,15 @@ export function buildSnapshots(settings, now = new Date(), options = {}) {
   const codexTokenSummary = options.codexTokenSummary;
   const localTodayUsage = enrichUsageWithEstimate(codexTokenSummary?.today, pricingProfile);
   const localAllUsage = enrichUsageWithEstimate(codexTokenSummary?.all, pricingProfile);
-  const usageForEstimate = hasAnyTokenUsage(localTodayUsage)
-    ? localTodayUsage
-    : hasAnyTokenUsage(providerUsage)
-      ? providerUsage
-      : {};
+  const apiSpendTodayUsage = enrichUsageWithEstimate(codexTokenSummary?.apiSpendToday, pricingProfile);
+  const hasApiSpendWindow = hasOwn(codexTokenSummary, 'apiSpendToday');
+  const usageForEstimate = hasApiSpendWindow
+    ? apiSpendTodayUsage ?? {}
+    : hasAnyTokenUsage(localTodayUsage)
+      ? localTodayUsage
+      : hasAnyTokenUsage(providerUsage)
+        ? providerUsage
+        : {};
   const tokenCost = estimateTokenCost(usageForEstimate, pricingProfile);
   const newApiError = options.newApiError ?? options.newApiSnapshot?.error;
   const balance = newApiError && !options.newApiSnapshot
@@ -40,7 +44,8 @@ export function buildSnapshots(settings, now = new Date(), options = {}) {
         codexTokenSummary: {
           ...codexTokenSummary,
           today: localTodayUsage,
-          all: localAllUsage
+          all: localAllUsage,
+          ...(hasApiSpendWindow ? { apiSpendToday: apiSpendTodayUsage } : {})
         }
       })
     : buildLocalNewApiSnapshot({
@@ -55,7 +60,8 @@ export function buildSnapshots(settings, now = new Date(), options = {}) {
         codexTokenSummary: {
           ...codexTokenSummary,
           today: localTodayUsage,
-          all: localAllUsage
+          all: localAllUsage,
+          ...(hasApiSpendWindow ? { apiSpendToday: apiSpendTodayUsage } : {})
         }
       });
 
@@ -278,9 +284,17 @@ function buildLocalLogs(summary, sync, codexTokenSummary, pricingProfile, option
   if (!summary && !sync && !codexTokenSummary) return undefined;
   const estimatedToday = enrichUsageWithEstimate(codexTokenSummary?.today, pricingProfile);
   const estimatedAll = enrichUsageWithEstimate(codexTokenSummary?.all, pricingProfile);
-  const today = hasUsageRecords(summary?.today)
+  const estimatedApiSpendToday = enrichUsageWithEstimate(codexTokenSummary?.apiSpendToday, pricingProfile);
+  const hasApiSpendWindow = hasOwn(codexTokenSummary, 'apiSpendToday');
+  const fallbackToday = hasUsageRecords(summary?.today)
     ? summary.today
     : resolveLocalTodayFallback(summary?.today, estimatedToday, estimatedAll, codexTokenSummary, options);
+  const tokenToday = hasApiSpendWindow
+    ? resolveLocalTodayFallback(summary?.today, estimatedToday, estimatedAll, codexTokenSummary, options)
+    : fallbackToday;
+  const today = hasApiSpendWindow
+    ? mergeUsageWithSpend(tokenToday, estimatedApiSpendToday)
+    : fallbackToday;
   return {
     today,
     all: hasUsageRecords(summary?.all) ? summary.all : estimatedAll ?? summary?.all,
@@ -289,6 +303,18 @@ function buildLocalLogs(summary, sync, codexTokenSummary, pricingProfile, option
     topup: sync?.topup ?? summary?.topup,
     sync: sync ?? summary?.sync
   };
+}
+
+function mergeUsageWithSpend(usage, spend) {
+  if (!usage && !spend) return undefined;
+  return pruneUndefined({
+    ...(usage ?? {}),
+    rawUsedAmount: numberOrUndefined(spend?.rawUsedAmount),
+    usedAmount: numberOrUndefined(spend?.usedAmount),
+    estimatedCost: numberOrUndefined(spend?.estimatedCost),
+    costSource: spend?.costSource,
+    currency: spend?.currency
+  });
 }
 
 function resolveLocalTodayFallback(summaryToday, estimatedToday, estimatedAll, codexTokenSummary, options) {
@@ -327,6 +353,10 @@ function hasUsageRecords(usage) {
   return ['inputTokens', 'cachedInputTokens', 'outputTokens', 'totalTokens', 'rawUsedAmount'].some(
     (key) => Number(usage?.[key]) > 0
   );
+}
+
+function hasOwn(value, key) {
+  return Boolean(value && Object.prototype.hasOwnProperty.call(value, key));
 }
 
 function buildCodexLocalLogs(summary) {

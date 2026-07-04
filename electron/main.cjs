@@ -30,6 +30,9 @@ let capsuleWindow = null;
 let detailWindow = null;
 let settingsWindow = null;
 let updateWindow = null;
+let quotaRecoveryWindow = null;
+let quotaRecoveryPromise = null;
+let resolveQuotaRecovery = null;
 let tray = null;
 let ownsBackend = false;
 let dragState = null;
@@ -258,6 +261,66 @@ async function createUpdateWindow(options = {}) {
   await updateWindow.loadURL(updateUrl);
 }
 
+async function showQuotaRecoveryWindow(payload = {}) {
+  if (quotaRecoveryPromise) return quotaRecoveryPromise;
+  if (!capsuleWindow || capsuleWindow.isDestroyed()) return 'dismissed';
+
+  quotaRecoveryPromise = new Promise((resolve) => {
+    resolveQuotaRecovery = resolve;
+  });
+  const resultPromise = quotaRecoveryPromise;
+  const width = 420;
+  const height = 220;
+  const display = screen.getDisplayMatching(capsuleWindow.getBounds());
+  const x = Math.round(display.workArea.x + (display.workArea.width - width) / 2);
+  const y = Math.round(display.workArea.y + (display.workArea.height - height) / 2);
+
+  quotaRecoveryWindow = new BrowserWindow({
+    width,
+    height,
+    x,
+    y,
+    parent: capsuleWindow,
+    modal: true,
+    frame: true,
+    show: false,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    autoHideMenuBar: true,
+    skipTaskbar: false,
+    title: '官方额度已恢复',
+    backgroundColor: '#f6f8fb',
+    icon: ICON_PATH,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      preload: path.join(__dirname, 'preload.cjs')
+    }
+  });
+
+  quotaRecoveryWindow.once('ready-to-show', () => {
+    quotaRecoveryWindow?.show();
+    quotaRecoveryWindow?.focus();
+  });
+  quotaRecoveryWindow.on('closed', () => {
+    quotaRecoveryWindow = null;
+    settleQuotaRecovery('dismissed');
+  });
+  quotaRecoveryWindow.setMenu(null);
+  installWindowHandlers(quotaRecoveryWindow);
+  await quotaRecoveryWindow.loadURL(`${APP_URL}?view=quota-recovery&resetAt=${encodeURIComponent(String(payload.resetAt || ''))}`);
+  return resultPromise;
+}
+
+function settleQuotaRecovery(result) {
+  const resolve = resolveQuotaRecovery;
+  resolveQuotaRecovery = null;
+  quotaRecoveryPromise = null;
+  resolve?.(result);
+}
+
 function createTray() {
   tray = new Tray(createTrayImage());
   tray.setToolTip('Codex Quota Glance');
@@ -374,6 +437,19 @@ ipcMain.on('desktop-toast-open', (event, open) => {
   if (!win || win !== capsuleWindow) return;
   toastOpen = Boolean(open);
   resizeCapsuleWindow();
+});
+
+ipcMain.handle('desktop-quota-recovery-open', (event, payload) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win !== capsuleWindow) return 'dismissed';
+  return showQuotaRecoveryWindow(payload);
+});
+
+ipcMain.on('desktop-quota-recovery-confirm', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win !== quotaRecoveryWindow) return;
+  settleQuotaRecovery('confirmed');
+  quotaRecoveryWindow.close();
 });
 
 ipcMain.on('desktop-layout-update', (event, layout) => {

@@ -32,13 +32,15 @@ export default function DetailPanel({ snapshot }: Props) {
 }
 
 function CodexDetails({ snapshot }: { snapshot: ProviderSnapshot }) {
+  const tokenUsage = snapshot.localLogs?.today ?? snapshot.usage;
+  const tokenUpdatedAt = snapshot.localLogs?.today?.latestLogAt ?? snapshot.usage?.log?.updatedAt;
   const hasCodexQuotaData =
     Number.isFinite(Number(snapshot.quota?.window5h?.remainingPercent)) ||
     Number.isFinite(Number(snapshot.quota?.weekly?.remainingPercent));
   const hasCodexTokenData =
-    Number.isFinite(Number(snapshot.usage?.inputTokens)) ||
-    Number.isFinite(Number(snapshot.usage?.cachedInputTokens)) ||
-    Number.isFinite(Number(snapshot.usage?.outputTokens));
+    Number.isFinite(Number(tokenUsage?.inputTokens)) ||
+    Number.isFinite(Number(tokenUsage?.cachedInputTokens)) ||
+    Number.isFinite(Number(tokenUsage?.outputTokens));
 
   return (
     <dl>
@@ -70,21 +72,21 @@ function CodexDetails({ snapshot }: { snapshot: ProviderSnapshot }) {
       {hasCodexTokenData && (
         <>
           <dt>Token</dt>
-          <dd>{formatTokenCount(snapshot.usage?.totalTokens)}</dd>
+          <dd>{formatTokenCount(tokenUsage?.totalTokens)}</dd>
           <dt>输入</dt>
-          <dd>{formatTokenCount(snapshot.usage?.inputTokens)}</dd>
+          <dd>{formatTokenCount(tokenUsage?.inputTokens)}</dd>
           <dt>缓存输入</dt>
-          <dd>{formatTokenCount(snapshot.usage?.cachedInputTokens)}</dd>
+          <dd>{formatTokenCount(tokenUsage?.cachedInputTokens)}</dd>
           <dt>输出</dt>
-          <dd>{formatTokenCount(snapshot.usage?.outputTokens)}</dd>
+          <dd>{formatTokenCount(tokenUsage?.outputTokens)}</dd>
           <dt>缓存命中率</dt>
-          <dd>{formatPercent(snapshot.usage?.cacheHitRate)}</dd>
+          <dd>{formatPercent(tokenUsage?.cacheHitRate)}</dd>
           <dt>数据来源</dt>
           <dd>Codex 本地会话</dd>
           <dt>数据更新</dt>
-          <dd>{formatDateTime(snapshot.usage?.log?.updatedAt)}</dd>
+          <dd>{formatDateTime(tokenUpdatedAt)}</dd>
           <dt>数据状态</dt>
-          <dd>{formatDataFreshness(snapshot.usage?.log?.updatedAt)}</dd>
+          <dd>{formatDataFreshness(tokenUpdatedAt)}</dd>
         </>
       )}
     </dl>

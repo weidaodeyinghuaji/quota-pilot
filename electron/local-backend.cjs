@@ -8,6 +8,11 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
 const { DatabaseSync } = require('node:sqlite');
+const {
+  applyCodexRuntimeObservation,
+  confirmQuotaReminder,
+  isQuotaReminderPending
+} = require('./codex-runtime-state.cjs');
 
 const HOST = '127.0.0.1';
 const PORT = 1420;
@@ -21,7 +26,7 @@ const TOPUP_CACHE_TTL_SECONDS = 10 * 60;
 const CODEX_SESSION_DISCOVERY_TTL_SECONDS = 5;
 const CODEX_RATE_LIMIT_CACHE_TTL_SECONDS = 60;
 const CODEX_SESSION_WATCH_DEBOUNCE_MS = 100;
-const CODEX_ACTIVITY_STALE_MS = 90 * 1000;
+const CODEX_ACTIVITY_STALE_MS = 15 * 1000;
 const GITHUB_LATEST_RELEASE_URL = 'https://github.com/akitten-cn/codex-quota-glance/releases/latest';
 const GITHUB_LATEST_RELEASE_API_URL = 'https://api.github.com/repos/akitten-cn/codex-quota-glance/releases/latest';
 
@@ -170,6 +175,13 @@ async function handleRequest(request, response) {
     sendJson(response, 200, await getCodexOverview());
     return;
   }
+  if (request.method === 'POST' && requestUrl.pathname === '/local-api/codex/quota-reminder/confirm') {
+    const payload = await readJson(request);
+    const next = confirmQuotaReminder(readCodexRuntimeState(), payload.resetAt);
+    writeCodexRuntimeState(next);
+    sendJson(response, 200, { ok: true, quotaReminder: buildQuotaReminder(next) });
+    return;
+  }
   if (request.method === 'GET' && requestUrl.pathname === '/local-api/codex/token/summary') {
     sendJson(response, 200, getCodexTokenSummary());
     return;
@@ -186,6 +198,17 @@ async function handleRequest(request, response) {
 }
 
 async function getCodexOverview() {
+  const status = await getCodexStatus().catch((error) => ({ ok: false, message: errorMessage(error) }));
+  let runtime = readCodexRuntimeState();
+  if (status?.accountType) {
+    runtime = applyCodexRuntimeObservation(runtime, {
+      accountType: status.accountType,
+      now: unixNow(),
+      quota: status.quota?.window5h
+    });
+    writeCodexRuntimeState(runtime);
+  }
+
   let latestToken;
   try {
     latestToken = getLatestCodexTokenUsage();
@@ -193,13 +216,17 @@ async function getCodexOverview() {
     latestToken = { ok: false, available: false, message: errorMessage(error) };
   }
 
-  const [status, tokenSummary] = await Promise.all([
-    getCodexStatus().catch((error) => ({ ok: false, message: errorMessage(error) })),
-    Promise.resolve()
-      .then(() => getCodexTokenSummary())
-      .catch((error) => ({ ok: false, message: errorMessage(error) }))
-  ]);
-  return { ok: true, status, latestToken, tokenSummary };
+  const tokenSummary = await Promise.resolve()
+    .then(() => getCodexTokenSummary())
+    .catch((error) => ({ ok: false, message: errorMessage(error) }));
+  return { ok: true, status, latestToken, tokenSummary, quotaReminder: buildQuotaReminder(runtime) };
+}
+
+function buildQuotaReminder(runtime = readCodexRuntimeState()) {
+  return {
+    pending: isQuotaReminderPending(runtime, unixNow()),
+    resetAt: runtime.waitingResetAt
+  };
 }
 
 async function getLatestRelease() {
@@ -332,6 +359,15 @@ function initDb() {
       raw_json text
     );
     create index if not exists idx_codex_token_events_account_time on codex_token_events(account_type, event_timestamp);
+    create table if not exists codex_runtime_state (
+      id integer primary key check (id = 1),
+      last_account_type text,
+      api_spend_started_at integer,
+      last_official_remaining_percent real,
+      waiting_reset_at integer,
+      confirmed_reset_at integer
+    );
+    insert or ignore into codex_runtime_state (id) values (1);
   `);
   ensureColumn('newapi_sync_state', 'fail_count', 'integer default 0');
   ensureColumn('newapi_sync_state', 'blocked_until', 'integer');
@@ -346,6 +382,40 @@ function ensureColumn(table, column, definition) {
   if (!columns.has(column)) {
     database.exec(`alter table ${table} add column ${column} ${definition}`);
   }
+}
+
+function readCodexRuntimeState() {
+  const row = database.prepare(`
+    select last_account_type, api_spend_started_at, last_official_remaining_percent,
+      waiting_reset_at, confirmed_reset_at
+    from codex_runtime_state where id = 1
+  `).get() || {};
+  return {
+    lastAccountType: stringOrUndefined(row.last_account_type),
+    apiSpendStartedAt: numberOrUndefined(row.api_spend_started_at),
+    lastOfficialRemainingPercent: numberOrUndefined(row.last_official_remaining_percent),
+    waitingResetAt: numberOrUndefined(row.waiting_reset_at),
+    confirmedResetAt: numberOrUndefined(row.confirmed_reset_at)
+  };
+}
+
+function writeCodexRuntimeState(state = {}) {
+  database.prepare(`
+    update codex_runtime_state set
+      last_account_type = ?,
+      api_spend_started_at = ?,
+      last_official_remaining_percent = ?,
+      waiting_reset_at = ?,
+      confirmed_reset_at = ?
+    where id = 1
+  `).run(
+    state.lastAccountType ?? null,
+    state.apiSpendStartedAt ?? null,
+    state.lastOfficialRemainingPercent ?? null,
+    state.waitingResetAt ?? null,
+    state.confirmedResetAt ?? null
+  );
+  return state;
 }
 
 async function serveStatic(requestUrl, response) {
@@ -937,59 +1007,32 @@ function buildCodexTokenEvent(rawEvent, sessionFile, accountType = getCodexAccou
 }
 
 function getCodexTokenSummary(context = {}) {
-  const accountType = String(context.accountType || getCodexAccountType());
-  const now = new Date();
+  const now = context.now instanceof Date ? context.now : new Date();
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
   const start = Math.floor(dayStart.getTime() / 1000);
   const dayEnd = new Date(dayStart);
   dayEnd.setDate(dayEnd.getDate() + 1);
   const end = Math.floor(dayEnd.getTime() / 1000);
+  const runtime = readCodexRuntimeState();
+  const apiSpendStartedAt = numberOrUndefined(runtime.apiSpendStartedAt);
+  const apiStart = Math.max(start, apiSpendStartedAt ?? start);
   return {
     ok: true,
-    accountType,
-    today: summarizeCodexTokenRows('where account_type = ? and event_timestamp >= ? and event_timestamp < ?', [accountType, start, end]),
-    all: summarizeCodexTokenRows('where account_type = ?', [accountType]),
-    latestEventAt: getLatestCodexEventAt(accountType)
+    accountType: runtime.lastAccountType || getCodexAccountType(),
+    today: summarizeCodexTokenRows('where event_timestamp >= ? and event_timestamp < ?', [start, end]),
+    all: summarizeCodexTokenRows('', []),
+    apiSpendToday: summarizeCodexTokenRows(
+      "where account_type = 'api' and event_timestamp >= ? and event_timestamp < ?",
+      [apiStart, end]
+    ),
+    apiSpendStartedAt,
+    latestEventAt: getLatestCodexEventAt()
   };
 }
 
 function summarizeCodexTokenRows(whereSql, params) {
   const row = database.prepare(`
-    with ordered as (
-      select
-        *,
-        lag(event_id) over (
-          partition by account_type, coalesce(session_file, '')
-          order by event_timestamp, event_iso, event_id
-        ) as previous_event_id,
-        lag(input_tokens) over (
-          partition by account_type, coalesce(session_file, '')
-          order by event_timestamp, event_iso, event_id
-        ) as previous_input_tokens,
-        lag(cached_input_tokens) over (
-          partition by account_type, coalesce(session_file, '')
-          order by event_timestamp, event_iso, event_id
-        ) as previous_cached_input_tokens,
-        lag(output_tokens) over (
-          partition by account_type, coalesce(session_file, '')
-          order by event_timestamp, event_iso, event_id
-        ) as previous_output_tokens,
-        lag(total_tokens) over (
-          partition by account_type, coalesce(session_file, '')
-          order by event_timestamp, event_iso, event_id
-        ) as previous_total_tokens
-      from codex_token_events
-      ${whereSql}
-    ), deduplicated as (
-      select *
-      from ordered
-      where previous_event_id is null
-        or input_tokens != previous_input_tokens
-        or cached_input_tokens != previous_cached_input_tokens
-        or output_tokens != previous_output_tokens
-        or total_tokens != previous_total_tokens
-    )
     select
       count(*) as request_count,
       coalesce(sum(input_tokens), 0) as input_tokens,
@@ -997,7 +1040,8 @@ function summarizeCodexTokenRows(whereSql, params) {
       coalesce(sum(output_tokens), 0) as output_tokens,
       coalesce(sum(total_tokens), 0) as total_tokens,
       max(event_timestamp) as latest_event_at
-    from deduplicated
+    from codex_token_events
+    ${whereSql}
   `).get(...params);
   const inputTokens = Number(row.input_tokens || 0);
   const cached = Number(row.cached_input_tokens || 0);
@@ -1014,8 +1058,8 @@ function summarizeCodexTokenRows(whereSql, params) {
   };
 }
 
-function getLatestCodexEventAt(accountType) {
-  const row = database.prepare('select max(event_timestamp) as latest from codex_token_events where account_type = ?').get(accountType);
+function getLatestCodexEventAt() {
+  const row = database.prepare('select max(event_timestamp) as latest from codex_token_events').get();
   const latest = Number(row?.latest);
   return Number.isFinite(latest) && latest > 0 ? latest : undefined;
 }
@@ -1288,7 +1332,6 @@ function codexActivityUpdate(event, state) {
   const eventType = String(event.type || '');
   const payload = event.payload && typeof event.payload === 'object' ? event.payload : {};
   const payloadType = String(payload.type || '');
-  const eventTs = parseIsoTimestamp(String(event.timestamp || ''));
   if (payload.phase === 'final_answer') return activityUpdate('thinking', false, state.waitingForPlanChoice, { isFinalAnswer: true });
   if (containsHumanWaitingSignal(payload) || containsHumanReviewSignal(payload)) {
     return activityUpdate('waiting_for_user', true, state.waitingForPlanChoice, { needsHumanAttention: true });
@@ -1298,7 +1341,6 @@ function codexActivityUpdate(event, state) {
   if (eventType === 'event_msg') {
     if (payloadType === 'task_started') return activityUpdate('thinking', true, false, { clearsFinalAnswer: true });
     if (payloadType === 'task_complete') {
-      if (shouldKeepFinalAnswerVisible(state.lastFinalAnswerAt, eventTs)) return activityUpdate('thinking', false, state.waitingForPlanChoice);
       if (state.waitingForPlanChoice) return activityUpdate('waiting_for_user', false, true, { needsHumanAttention: true });
       return activityUpdate('finished', false, false, { completedTask: true });
     }
@@ -1393,8 +1435,7 @@ function syncTodayCodexTokenEvents() {
     codexTokenFileCaches.set(sessionFile, {
       offset: Buffer.byteLength(content),
       remainder,
-      latestEvent: newEvents.at(-1) || null,
-      lastUsageFingerprint: codexTokenUsageFingerprint(newEvents.at(-1))
+      latestEvent: newEvents.at(-1) || null
     });
   }
 }
@@ -1403,19 +1444,16 @@ function readNewCodexTokenEvents(sessionFile) {
   const cached = codexTokenFileCaches.get(sessionFile) || {
     offset: 0,
     remainder: '',
-    latestEvent: null,
-    lastUsageFingerprint: ''
+    latestEvent: null
   };
   let cachedOffset = Number(cached.offset || 0);
   let latestEvent = cached.latestEvent;
   let remainder = String(cached.remainder || '');
-  let lastUsageFingerprint = String(cached.lastUsageFingerprint || '');
   const size = fs.statSync(sessionFile).size;
   if (size < cachedOffset) {
     cachedOffset = 0;
     latestEvent = null;
     remainder = '';
-    lastUsageFingerprint = '';
   }
   const fd = fs.openSync(sessionFile, 'r');
   try {
@@ -1426,15 +1464,9 @@ function readNewCodexTokenEvents(sessionFile) {
     const lines = chunk.split(/\r?\n/);
     remainder = endsWithNewline ? '' : lines.pop() || '';
     const parsedEvents = parseCodexTokenEvents(lines.join('\n'));
-    const newEvents = [];
-    for (const event of parsedEvents) {
-      const fingerprint = codexTokenUsageFingerprint(event);
-      if (fingerprint && fingerprint === lastUsageFingerprint) continue;
-      newEvents.push(event);
-      lastUsageFingerprint = fingerprint;
-    }
+    const newEvents = parsedEvents;
     if (newEvents.length > 0) latestEvent = newEvents.at(-1);
-    codexTokenFileCaches.set(sessionFile, { offset: size, remainder, latestEvent, lastUsageFingerprint });
+    codexTokenFileCaches.set(sessionFile, { offset: size, remainder, latestEvent });
     return { latestEvent, newEvents };
   } finally {
     fs.closeSync(fd);
@@ -1443,31 +1475,15 @@ function readNewCodexTokenEvents(sessionFile) {
 
 function parseCodexTokenEvents(content) {
   const events = [];
-  let lastUsageFingerprint = '';
   for (const line of String(content || '').split(/\r?\n/)) {
     if (!line.includes('"token_count"')) continue;
     try {
       const event = JSON.parse(line);
       if (event.payload?.type !== 'token_count') continue;
-      const fingerprint = codexTokenUsageFingerprint(event);
-      if (fingerprint && fingerprint === lastUsageFingerprint) continue;
       events.push(event);
-      lastUsageFingerprint = fingerprint;
     } catch {}
   }
   return events;
-}
-
-function codexTokenUsageFingerprint(event) {
-  const usage = event?.payload?.info?.last_token_usage;
-  if (!usage || typeof usage !== 'object') return '';
-  return [
-    numberOrZero(usage.input_tokens),
-    numberOrZero(usage.cached_input_tokens),
-    numberOrZero(usage.output_tokens),
-    numberOrZero(usage.total_tokens),
-    numberOrZero(usage.reasoning_output_tokens)
-  ].join(':');
 }
 
 function recentSessionLines(sessionFile, maxBytes) {
@@ -2153,11 +2169,6 @@ function stringValues(value) {
   return [];
 }
 
-function shouldKeepFinalAnswerVisible(finalAnswerAt, taskCompleteAt) {
-  if (finalAnswerAt === null || finalAnswerAt === undefined || taskCompleteAt === null || taskCompleteAt === undefined) return false;
-  return taskCompleteAt - finalAnswerAt <= 1 && Date.now() / 1000 - taskCompleteAt < 1.5;
-}
-
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error || 'Unknown error');
 }
@@ -2180,6 +2191,7 @@ module.exports = {
     parseCodexConfig,
     parseCodexTokenEvents,
     settleCodexActivity,
+    codexActivityUpdate,
     makeSyncKey,
     keyFingerprint
   }

@@ -517,6 +517,37 @@ assert.equal(invalidTokenUsesLocalCodexAllForToday.localLogs.today.totalTokens, 
 assert.equal(invalidTokenUsesLocalCodexAllForToday.localLogs.today.requestCount, 9);
 assert.ok(invalidTokenUsesLocalCodexAllForToday.localLogs.today.rawUsedAmount > 0);
 
+const crossModeDailyUsage = buildSnapshots(baseSettings, new Date('2026-07-03T09:00:00.000Z'), {
+  codexStatus: { accountType: 'api' },
+  codexTokenSummary: {
+    today: {
+      requestCount: 3,
+      inputTokens: 3000,
+      cachedInputTokens: 2000,
+      outputTokens: 300,
+      totalTokens: 3300
+    },
+    all: {
+      requestCount: 8,
+      inputTokens: 8000,
+      cachedInputTokens: 5000,
+      outputTokens: 800,
+      totalTokens: 8800
+    },
+    apiSpendToday: {
+      requestCount: 1,
+      inputTokens: 1000,
+      cachedInputTokens: 800,
+      outputTokens: 100,
+      totalTokens: 1100
+    }
+  }
+}).find((snapshot) => snapshot.providerType === 'new-api');
+
+assert.equal(crossModeDailyUsage.localLogs.today.totalTokens, 3300);
+assert.equal(crossModeDailyUsage.localLogs.today.requestCount, 3);
+assert.equal(crossModeDailyUsage.localLogs.today.rawUsedAmount, 800);
+
 console.log('snapshot factory tests passed');
 
 function round(value) {

@@ -20,6 +20,8 @@ export function normalizeCodexTokenSummary(payload) {
     accountType: payload.accountType,
     today: normalizeUsageLog(payload.today),
     all: normalizeUsageLog(payload.all),
+    apiSpendToday: normalizeUsageLog(payload.apiSpendToday),
+    apiSpendStartedAt: numberOrUndefined(payload.apiSpendStartedAt),
     latestEventAt: numberOrUndefined(payload.latestEventAt)
   };
 }

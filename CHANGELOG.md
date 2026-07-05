@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.11
+
+- 修正官方登录模式的今日 Token 统计：每条唯一的 `token_count` 事件都会计入累计，相同 Token 数值不再被误判为重复记录。
+- 统一官方登录与 API 模式的每日用量，切换模式后今日 Token 不再清零；API 花费则从切换到 API 模式的时间点开始计算。
+- 收到任务完成事件后立即将胶囊切换为空闲状态，并保留 15 秒异常兜底，减少停止后仍长时间显示“思考中”的情况。
+- 新增官方 5 小时额度恢复提醒；额度恢复后弹出确认窗口，点击“知道了”后本周期不再重复提醒，直接关闭窗口则会在后续检测时再次提醒。
+- 增加运行状态持久化与回归测试，覆盖跨模式累计、API 花费起点、活动状态收敛和额度恢复提醒流程。
+
 ## 0.1.10
 
 - Fixed stale Codex activity state so the capsule returns to idle after a stopped session stops writing activity events.

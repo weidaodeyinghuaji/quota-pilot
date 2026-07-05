@@ -25,4 +25,19 @@ assert.match(body, /local Codex token summary estimation/);
 assert.doesNotMatch(body, /## 0\.1\.3/);
 rmSync(output);
 
+execFileSync(process.execPath, [
+  script,
+  'v0.1.11',
+  output
+], {
+  cwd,
+  stdio: 'pipe'
+});
+
+const chineseBody = readFileSync(output, 'utf8');
+assert.match(chineseBody, /修正官方登录模式的今日 Token 统计/);
+assert.match(chineseBody, /官方 5 小时额度恢复提醒/);
+assert.doesNotMatch(chineseBody, /## 0\.1\.10/);
+rmSync(output);
+
 console.log('release notes script tests passed');

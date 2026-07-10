@@ -1,6 +1,6 @@
 {
   "name": "quota-pilot",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "Windows desktop dashboard for the active Codex account and API usage.",
   "private": false,
   "license": "MIT",

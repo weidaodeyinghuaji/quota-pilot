@@ -390,6 +390,10 @@ ipcMain.on('desktop-drag-start', (event, point) => {
   };
 });
 
+ipcMain.on('desktop-open-settings', () => {
+  openSettingsWindow().catch(() => {});
+});
+
 ipcMain.on('desktop-drag-move', (event, point) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win || win !== capsuleWindow || !dragState) return;

@@ -37,6 +37,7 @@ export interface NewApiProviderConfig {
 export interface AppSettings {
   appearance: {
     theme: 'dark' | 'light';
+    capsuleDensity: 'compact' | 'standard';
   };
   newApi: {
     activeProviderId: string;

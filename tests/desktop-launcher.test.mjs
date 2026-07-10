@@ -36,6 +36,7 @@ assert.match(electronMain, /transparent:\s*true/);
 assert.match(electronMain, /skipTaskbar:\s*true/);
 assert.match(electronMain, /alwaysOnTop:\s*true/);
 assert.match(electronMain, /openSettingsWindow/);
+assert.match(electronMain, /desktop-open-settings/);
 assert.match(electronMain, /desktop=1/);
 assert.match(electronMain, /DEFAULT_CAPSULE_SIZE\s*=\s*\{\s*width:\s*620,\s*height:\s*72\s*\}/);
 assert.match(electronMain, /DEFAULT_DETAIL_SIZE/);

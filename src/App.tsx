@@ -20,6 +20,7 @@ import {
   saveAppSettings,
   updateCapsulePosition,
   updateAppearanceTheme,
+  updateCapsuleDensity,
   createNewApiProviderDraft,
   deleteNewApiProvider,
   duplicateNewApiProvider,
@@ -42,6 +43,7 @@ export default function App() {
   const autoDownloadRequested = urlParams.get('download') === '1';
   const [settings, setSettings] = React.useState(() => loadAppSettings());
   const [newApiSnapshot, setNewApiSnapshot] = React.useState(null);
+  const [manualRefreshNonce, setManualRefreshNonce] = React.useState(0);
   const [codexStatus, setCodexStatus] = React.useState(null);
   const [codexStatusLoaded, setCodexStatusLoaded] = React.useState(false);
   const lastNewApiSnapshotRef = React.useRef(null);
@@ -201,6 +203,7 @@ export default function App() {
     isDesktopCapsule,
     settings.newApi.codexTokenPollIntervalSeconds,
     settings.pricingProfile,
+    manualRefreshNonce,
     shouldRunBackgroundData
   ]);
 
@@ -349,6 +352,13 @@ export default function App() {
     settings.newApi.topupRefreshIntervalSeconds
   ]);
 
+  const handleQuickRefresh = React.useCallback(() => {
+    setManualRefreshNonce((value) => value + 1);
+    if (activeSnapshot?.providerType === 'new-api') {
+      runPlatformSync({ manual: true }).catch(() => {});
+    }
+  }, [activeSnapshot?.providerType, runPlatformSync]);
+
   React.useEffect(() => {
     let active = true;
     let timer: ReturnType<typeof window.setInterval> | undefined;
@@ -390,6 +400,7 @@ export default function App() {
     settings.newApi.displayName,
     settings.newApi.refreshIntervalSeconds,
     settings.pricingProfile,
+    manualRefreshNonce,
     shouldUseNewApiAutomation
   ]);
 
@@ -480,6 +491,7 @@ export default function App() {
         <SettingsPage
           settings={settings}
           onThemeChange={(theme) => setSettings((current) => updateAppearanceTheme(current, theme))}
+          onCapsuleDensityChange={(density) => setSettings((current) => updateCapsuleDensity(current, density))}
           onNewApiChange={(key, value) => setSettings((current) => updateNewApiSettings(current, key, value))}
           onPricingChange={(key, value) => setSettings((current) => updatePricingProfile(current, key, value))}
           onProviderSave={(provider) => setSettings((current) => upsertNewApiProvider(current, provider))}
@@ -526,7 +538,17 @@ export default function App() {
             />
             <FloatingCapsule
               activity={codexStatus?.activity}
+              density={settings.appearance.capsuleDensity}
               expanded={detailOpen}
+              onOpenSettings={() => {
+                if (window.codexQuotaDesktop?.openSettings) {
+                  window.codexQuotaDesktop.openSettings();
+                  return;
+                }
+                setSettingsOpen(true);
+              }}
+              onRefresh={handleQuickRefresh}
+              onToggleTheme={() => setSettings((current) => updateAppearanceTheme(current, current.appearance.theme === 'dark' ? 'light' : 'dark'))}
               updateAvailable={Boolean(updateCheckState.isNewer)}
               snapshot={activeSnapshot}
             />
@@ -553,6 +575,7 @@ export default function App() {
         <SettingsPage
           settings={settings}
           onThemeChange={(theme) => setSettings((current) => updateAppearanceTheme(current, theme))}
+          onCapsuleDensityChange={(density) => setSettings((current) => updateCapsuleDensity(current, density))}
             onNewApiChange={(key, value) => setSettings((current) => updateNewApiSettings(current, key, value))}
             onPricingChange={(key, value) => setSettings((current) => updatePricingProfile(current, key, value))}
             onProviderSave={(provider) => setSettings((current) => upsertNewApiProvider(current, provider))}

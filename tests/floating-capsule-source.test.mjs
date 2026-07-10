@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 const source = readFileSync(new URL('../src/components/FloatingCapsule.tsx', import.meta.url), 'utf8');
 
 assert.match(source, /activity\?: ProviderSnapshot\['activity'\]/);
-assert.match(source, /getSignalState\(activity \?\? snapshot\?\.activity\)/);
+assert.match(source, /getSignalState\(activity \?\? snapshot\?\.activity, snapshot\)/);
 assert.match(source, /aria-label=\{signal\.label\}/);
 assert.doesNotMatch(source, /aria-hidden="true"/);
 assert.match(source, /status === 'answering'/);
@@ -20,5 +20,8 @@ assert.match(source, /今日 Token/);
 assert.match(source, /可用余额/);
 assert.match(source, /5 小时剩余/);
 assert.match(source, /7 天剩余/);
+assert.match(source, /capsule-actions/);
+assert.match(source, /capsule-progress/);
+assert.match(source, /同步失败/);
 
 console.log('floating capsule source tests passed');

@@ -2,7 +2,8 @@ export const SETTINGS_STORAGE_KEY = 'codexQuotaGlanceSettings';
 
 export const DEFAULT_APP_SETTINGS = Object.freeze({
   appearance: Object.freeze({
-    theme: 'dark'
+    theme: 'dark',
+    capsuleDensity: 'standard'
   }),
   newApi: Object.freeze({
     activeProviderId: 'default-new-api',
@@ -124,7 +125,8 @@ export function mergeAppSettings(settings) {
   return {
     appearance: {
       ...DEFAULT_APP_SETTINGS.appearance,
-      theme: appearance.theme === 'light' ? 'light' : 'dark'
+      theme: appearance.theme === 'light' ? 'light' : 'dark',
+      capsuleDensity: appearance.capsuleDensity === 'compact' ? 'compact' : 'standard'
     },
     newApi: {
       ...baseNewApi,
@@ -403,6 +405,16 @@ export function updateAppearanceTheme(settings, theme) {
     appearance: {
       ...settings.appearance,
       theme: theme === 'light' ? 'light' : 'dark'
+    }
+  };
+}
+
+export function updateCapsuleDensity(settings, capsuleDensity) {
+  return {
+    ...settings,
+    appearance: {
+      ...settings.appearance,
+      capsuleDensity: capsuleDensity === 'compact' ? 'compact' : 'standard'
     }
   };
 }

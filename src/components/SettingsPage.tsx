@@ -9,6 +9,7 @@ type SettingsTab = 'api' | 'sync' | 'about';
 interface Props {
   settings: AppSettings;
   onThemeChange: (theme: 'dark' | 'light') => void;
+  onCapsuleDensityChange: (density: 'compact' | 'standard') => void;
   onNewApiChange: (key: string, value: string) => void;
   onPricingChange: (key: string, value: string) => void;
   onProviderSave: (provider: NewApiManagedProvider) => void;
@@ -35,6 +36,7 @@ interface Props {
 export default function SettingsPage({
   settings,
   onThemeChange,
+  onCapsuleDensityChange,
   onNewApiChange,
   onProviderSave,
   onProviderSelect,
@@ -90,6 +92,22 @@ export default function SettingsPage({
             onClick={() => onThemeChange('light')}
           >
             浅色
+          </button>
+        </div>
+        <div className="theme-toggle" role="group" aria-label="悬浮面板密度">
+          <button
+            className={settings.appearance.capsuleDensity === 'compact' ? 'is-active' : ''}
+            type="button"
+            onClick={() => onCapsuleDensityChange('compact')}
+          >
+            极简
+          </button>
+          <button
+            className={settings.appearance.capsuleDensity === 'standard' ? 'is-active' : ''}
+            type="button"
+            onClick={() => onCapsuleDensityChange('standard')}
+          >
+            标准
           </button>
         </div>
         <nav className="settings-tabs" aria-label="设置分类">

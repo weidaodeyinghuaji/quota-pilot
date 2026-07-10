@@ -1,4 +1,4 @@
-export const APP_VERSION = '0.2.3';
+export const APP_VERSION = '0.3.0';
 export const GITHUB_REPOSITORY_URL = 'https://github.com/weidaodeyinghuaji/quota-pilot';
 export const GITHUB_RELEASES_URL = `${GITHUB_REPOSITORY_URL}/releases`;
 export const GITHUB_LATEST_RELEASE_API_URL =

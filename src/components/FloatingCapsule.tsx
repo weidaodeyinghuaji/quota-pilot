@@ -5,21 +5,36 @@ import type { ProviderSnapshot } from '../types/provider';
 interface Props {
   snapshot: ProviderSnapshot | null;
   activity?: ProviderSnapshot['activity'];
+  density?: 'compact' | 'standard';
   expanded?: boolean;
   updateAvailable?: boolean;
   onClick?: () => void;
+  onRefresh?: () => void;
+  onToggleTheme?: () => void;
+  onOpenSettings?: () => void;
 }
 
-export default function FloatingCapsule({ snapshot, activity, expanded = false, updateAvailable = false, onClick }: Props) {
+export default function FloatingCapsule({
+  snapshot,
+  activity,
+  density = 'standard',
+  expanded = false,
+  updateAvailable = false,
+  onClick,
+  onRefresh,
+  onToggleTheme,
+  onOpenSettings
+}: Props) {
   const display = getCapsuleDisplay(snapshot);
-  const signal = getSignalState(activity ?? snapshot?.activity);
+  const signal = getSignalState(activity ?? snapshot?.activity, snapshot);
   const metrics = getCapsuleMetrics(snapshot);
   const accountLabel = getAccountLabel(snapshot);
 
   return (
-    <button
+    <section className={`floating-capsule is-${density}`}>
+      <button
       aria-expanded={expanded}
-      className="floating-capsule capsule-drag-handle"
+      className="capsule-main capsule-drag-handle"
       type="button"
       onClick={onClick}
     >
@@ -40,21 +55,38 @@ export default function FloatingCapsule({ snapshot, activity, expanded = false, 
         <span className="capsule-summary">{display.meta || display.subtitle}</span>
       </div>
       <div className="capsule-metrics" aria-label="配额摘要">
-        <div>
-          <span>{metrics.primaryLabel}</span>
-          <strong>{metrics.primaryValue}</strong>
-        </div>
-        <div>
-          <span>{metrics.secondaryLabel}</span>
-          <strong>{metrics.secondaryValue}</strong>
-        </div>
+        <Metric label={metrics.primaryLabel} value={metrics.primaryValue} progress={metrics.primaryProgress} />
+        <Metric label={metrics.secondaryLabel} value={metrics.secondaryValue} progress={metrics.secondaryProgress} />
       </div>
+      </button>
+      {density === 'standard' && (
+        <div className="capsule-actions" aria-label="快捷操作" data-no-drag="true">
+          <button type="button" title="立即刷新" onClick={onRefresh}>刷新</button>
+          <button type="button" title="切换深浅主题" onClick={onToggleTheme}>主题</button>
+          <button type="button" title="打开设置" onClick={onOpenSettings}>设置</button>
+        </div>
+      )}
       {updateAvailable && (
         <span className="capsule-update-badge" title="发现新版本" aria-label="发现新版本">
           ↑
         </span>
       )}
-    </button>
+    </section>
+  );
+}
+
+function Metric({ label, value, progress }: { label: string; value: string; progress?: number }) {
+  const normalizedProgress = Number.isFinite(Number(progress))
+    ? Math.min(100, Math.max(0, Number(progress)))
+    : undefined;
+  return (
+    <div>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      {normalizedProgress !== undefined && (
+        <span className="capsule-progress"><i style={{ width: `${normalizedProgress}%` }} /></span>
+      )}
+    </div>
   );
 }
 
@@ -74,8 +106,10 @@ function getCapsuleMetrics(snapshot: ProviderSnapshot | null) {
   return {
     primaryLabel: '5 小时剩余',
     primaryValue: formatPercent(snapshot?.quota?.window5h?.remainingPercent),
+    primaryProgress: snapshot?.quota?.window5h?.remainingPercent,
     secondaryLabel: '7 天剩余',
-    secondaryValue: formatPercent(snapshot?.quota?.weekly?.remainingPercent)
+    secondaryValue: formatPercent(snapshot?.quota?.weekly?.remainingPercent),
+    secondaryProgress: snapshot?.quota?.weekly?.remainingPercent
   };
 }
 
@@ -98,7 +132,13 @@ function formatCompact(value?: number) {
   return String(number);
 }
 
-function getSignalState(activity: ProviderSnapshot['activity'] | undefined) {
+function getSignalState(activity: ProviderSnapshot['activity'] | undefined, snapshot: ProviderSnapshot | null) {
+  if (snapshot?.status === 'error' || snapshot?.status === 'unavailable') {
+    return { red: true, yellow: false, green: false, breath: false, label: '同步失败' };
+  }
+  if (snapshot?.status === 'loading') {
+    return { red: false, yellow: true, green: false, breath: true, label: '正在刷新' };
+  }
   const status = activity?.status;
   const label = activity?.label || fallbackActivityLabel(status);
   if (status === 'executing' || status === 'answering') {

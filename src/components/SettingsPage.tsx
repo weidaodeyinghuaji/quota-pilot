@@ -12,6 +12,8 @@ interface Props {
   onCapsuleDensityChange: (density: 'compact' | 'standard') => void;
   onAlertSettingsChange: (key: string, value: string | boolean) => void;
   onTestQuotaAlert: () => void;
+  alertTestState: { status: string; message: string };
+  quietHoursActive: boolean;
   onNewApiChange: (key: string, value: string) => void;
   onPricingChange: (key: string, value: string) => void;
   onProviderSave: (provider: NewApiManagedProvider) => void;
@@ -41,6 +43,8 @@ export default function SettingsPage({
   onCapsuleDensityChange,
   onAlertSettingsChange,
   onTestQuotaAlert,
+  alertTestState,
+  quietHoursActive,
   onNewApiChange,
   onProviderSave,
   onProviderSelect,
@@ -82,37 +86,19 @@ export default function SettingsPage({
           <h2>设置</h2>
           <p>管理供应商、同步频率和更新检测。</p>
         </div>
-        <div className="theme-toggle" role="group" aria-label="界面主题">
-          <button
-            className={settings.appearance.theme === 'dark' ? 'is-active' : ''}
-            type="button"
-            onClick={() => onThemeChange('dark')}
-          >
-            深色
-          </button>
-          <button
-            className={settings.appearance.theme === 'light' ? 'is-active' : ''}
-            type="button"
-            onClick={() => onThemeChange('light')}
-          >
-            浅色
-          </button>
+        <div className="setting-choice">
+          <span>界面主题</span>
+          <div className="theme-toggle" role="group" aria-label="界面主题">
+            <button className={settings.appearance.theme === 'dark' ? 'is-active' : ''} type="button" onClick={() => onThemeChange('dark')}>深色</button>
+            <button className={settings.appearance.theme === 'light' ? 'is-active' : ''} type="button" onClick={() => onThemeChange('light')}>浅色</button>
+          </div>
         </div>
-        <div className="theme-toggle" role="group" aria-label="悬浮面板密度">
-          <button
-            className={settings.appearance.capsuleDensity === 'compact' ? 'is-active' : ''}
-            type="button"
-            onClick={() => onCapsuleDensityChange('compact')}
-          >
-            极简
-          </button>
-          <button
-            className={settings.appearance.capsuleDensity === 'standard' ? 'is-active' : ''}
-            type="button"
-            onClick={() => onCapsuleDensityChange('standard')}
-          >
-            标准
-          </button>
+        <div className="setting-choice">
+          <span>悬浮面板密度</span>
+          <div className="theme-toggle" role="group" aria-label="悬浮面板密度">
+            <button className={settings.appearance.capsuleDensity === 'compact' ? 'is-active' : ''} type="button" onClick={() => onCapsuleDensityChange('compact')}>极简</button>
+            <button className={settings.appearance.capsuleDensity === 'standard' ? 'is-active' : ''} type="button" onClick={() => onCapsuleDensityChange('standard')}>标准</button>
+          </div>
         </div>
         <nav className="settings-tabs" aria-label="设置分类">
           <TabButton active={activeTab === 'api'} onClick={() => setActiveTab('api')}>
@@ -351,8 +337,10 @@ export default function SettingsPage({
               </label>
             </div>
             <span className="field-hint">留空表示不静默；跨午夜时间段也会生效。静默结束后，仍满足条件的低额度会继续提醒。</span>
+            {quietHoursActive && <span className="connection-message connection-loading">当前处于静默时段，通知将在静默结束后恢复。</span>}
             <div className="settings-actions">
               <button className="secondary-action" type="button" onClick={onTestQuotaAlert}>发送测试提醒</button>
+              {alertTestState.message && <span className={`connection-message connection-${alertTestState.status}`}>{alertTestState.message}</span>}
             </div>
           </section>
         )}

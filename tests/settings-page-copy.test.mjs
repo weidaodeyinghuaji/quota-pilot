@@ -9,5 +9,7 @@ assert.doesNotMatch(source, /页面刷新频率/);
 assert.match(source, /配额提醒/);
 assert.match(source, /发送测试提醒/);
 assert.match(source, /静默开始/);
+assert.match(source, /当前处于静默时段/);
+assert.match(source, /alertTestState/);
 
 console.log('settings page copy tests passed');

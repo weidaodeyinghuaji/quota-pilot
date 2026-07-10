@@ -54,6 +54,8 @@ export default function App() {
   const [localLogSummary, setLocalLogSummary] = React.useState(null);
   const [localLogSync, setLocalLogSync] = React.useState(null);
   const [manualSyncState, setManualSyncState] = React.useState({ status: 'idle', message: '' });
+  const platformSyncInFlightRef = React.useRef<Promise<unknown> | null>(null);
+  const [alertTestState, setAlertTestState] = React.useState({ status: 'idle', message: '' });
   const [spendEvent, setSpendEvent] = React.useState(null);
   const [visibleSpendEvent, setVisibleSpendEvent] = React.useState(null);
   const [detailOpen, setDetailOpen] = React.useState(false);
@@ -87,6 +89,7 @@ export default function App() {
   const activeSnapshot = selectPrimarySnapshot(snapshots);
   const shouldUseNewApiAutomation =
     shouldRunBackgroundData && codexStatusLoaded && codexStatus?.accountType !== 'official_login' && canUseNewApiLocalData(settings.newApi);
+  const quietHoursActive = isQuietHours(settings.alerts);
 
   React.useEffect(() => {
     saveAppSettings(undefined, settings);
@@ -95,7 +98,7 @@ export default function App() {
   React.useEffect(() => {
     if (!isDesktopCapsule || !window.codexQuotaDesktop?.showQuotaAlert) return;
     const nextSeenIds = new Set(seenQuotaAlertIdsRef.current);
-    if (isQuietHours(settings.alerts)) return;
+    if (quietHoursActive) return;
     const alerts = getQuotaAlertCandidates(activeSnapshot, settings.alerts);
     for (const alert of alerts) {
       if (nextSeenIds.has(alert.id)) continue;
@@ -106,7 +109,7 @@ export default function App() {
       seenQuotaAlertIdsRef.current = nextSeenIds;
       saveSeenQuotaAlertIds(nextSeenIds);
     }
-  }, [activeSnapshot, isDesktopCapsule, settings.alerts]);
+  }, [activeSnapshot, isDesktopCapsule, quietHoursActive, settings.alerts]);
 
   const runUpdateCheck = React.useCallback(async ({ silent = false } = {}) => {
     if (!silent) {
@@ -320,7 +323,15 @@ export default function App() {
     };
   }, [isDesktopCapsule, spendEvent, settings.newApi.spendToastSeconds]);
 
-  const runPlatformSync = React.useCallback(async (options = {}) => {
+  const runPlatformSync = React.useCallback((options = {}) => {
+    if (platformSyncInFlightRef.current) {
+      if (options.manual) {
+        setManualSyncState({ status: 'loading', message: '已有同步正在进行，请稍候...' });
+      }
+      return platformSyncInFlightRef.current;
+    }
+
+    const task = (async () => {
     if (!canUseNewApiLocalData(settings.newApi)) {
       if (options.manual) {
         setManualSyncState({ status: 'error', message: '请先填写 Base URL 和系统访问令牌或 API Key' });
@@ -364,6 +375,14 @@ export default function App() {
       }
       return undefined;
     }
+    })();
+    platformSyncInFlightRef.current = task;
+    task.finally(() => {
+      if (platformSyncInFlightRef.current === task) {
+        platformSyncInFlightRef.current = null;
+      }
+    });
+    return task;
   }, [
     settings.newApi.baseUrl,
     settings.newApi.apiKey,
@@ -392,10 +411,15 @@ export default function App() {
   }, [activeSnapshot?.providerType, quickRefreshState.updatedAt, runPlatformSync]);
 
   const handleTestQuotaAlert = React.useCallback(() => {
-    window.codexQuotaDesktop?.showQuotaAlert({
+    if (!window.codexQuotaDesktop?.showQuotaAlert) {
+      setAlertTestState({ status: 'error', message: '当前不是 Windows 桌面版，无法发送系统测试提醒。' });
+      return;
+    }
+    window.codexQuotaDesktop.showQuotaAlert({
       title: 'QuotaPilot 测试提醒',
       body: '提醒功能正常。此通知不会影响真实额度提醒。'
     });
+    setAlertTestState({ status: 'success', message: '测试提醒已发送；若没有看到，请检查 Windows 通知与专注模式。' });
   }, []);
 
   React.useEffect(() => {
@@ -533,6 +557,8 @@ export default function App() {
           onCapsuleDensityChange={(density) => setSettings((current) => updateCapsuleDensity(current, density))}
           onAlertSettingsChange={(key, value) => setSettings((current) => updateAlertSettings(current, key, value))}
           onTestQuotaAlert={handleTestQuotaAlert}
+          alertTestState={alertTestState}
+          quietHoursActive={quietHoursActive}
           onNewApiChange={(key, value) => setSettings((current) => updateNewApiSettings(current, key, value))}
           onPricingChange={(key, value) => setSettings((current) => updatePricingProfile(current, key, value))}
           onProviderSave={(provider) => setSettings((current) => upsertNewApiProvider(current, provider))}
@@ -620,6 +646,8 @@ export default function App() {
           onCapsuleDensityChange={(density) => setSettings((current) => updateCapsuleDensity(current, density))}
           onAlertSettingsChange={(key, value) => setSettings((current) => updateAlertSettings(current, key, value))}
           onTestQuotaAlert={handleTestQuotaAlert}
+          alertTestState={alertTestState}
+          quietHoursActive={quietHoursActive}
             onNewApiChange={(key, value) => setSettings((current) => updateNewApiSettings(current, key, value))}
             onPricingChange={(key, value) => setSettings((current) => updatePricingProfile(current, key, value))}
             onProviderSave={(provider) => setSettings((current) => upsertNewApiProvider(current, provider))}

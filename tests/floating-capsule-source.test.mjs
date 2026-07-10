@@ -28,5 +28,8 @@ assert.match(source, /formatResetTime/);
 assert.match(source, /refreshState/);
 assert.match(source, /capsule-last-updated/);
 assert.match(source, /is-critical/);
+assert.match(source, /额度紧张/);
+assert.match(source, /额度偏低/);
+assert.match(source, /刷新中/);
 
 console.log('floating capsule source tests passed');

@@ -61,7 +61,7 @@ export default function FloatingCapsule({
         <Metric label={metrics.primaryLabel} value={metrics.primaryValue} progress={metrics.primaryProgress} />
         <Metric label={metrics.secondaryLabel} value={metrics.secondaryValue} progress={metrics.secondaryProgress} />
       </div>
-      {density === 'standard' && snapshot?.providerType === 'codex' && (
+      {snapshot?.providerType === 'codex' && (
         <div className="capsule-refresh-note">
           <strong>5 小时刷新：{formatResetTime(snapshot.quota?.window5h?.resetAt)}</strong>
           <span>{formatQuotaRecovery(snapshot.quota?.window5h?.resetAt)} · 7 天刷新：{formatResetTime(snapshot.quota?.weekly?.resetAt)}</span>
@@ -91,10 +91,12 @@ function Metric({ label, value, progress }: { label: string; value: string; prog
   const normalizedProgress = Number.isFinite(Number(progress))
     ? Math.min(100, Math.max(0, Number(progress)))
     : undefined;
+  const metricState = getMetricState(normalizedProgress);
   return (
-    <div className={getMetricState(normalizedProgress)}>
+    <div className={metricState}>
       <span>{label}</span>
       <strong>{value}</strong>
+      {metricState && <em>{metricState === 'is-critical' ? '额度紧张' : '额度偏低'}</em>}
       {normalizedProgress !== undefined && (
         <span className="capsule-progress"><i style={{ width: `${normalizedProgress}%` }} /></span>
       )}

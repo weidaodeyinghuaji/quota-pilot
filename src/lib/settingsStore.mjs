@@ -5,6 +5,13 @@ export const DEFAULT_APP_SETTINGS = Object.freeze({
     theme: 'dark',
     capsuleDensity: 'standard'
   }),
+  alerts: Object.freeze({
+    lowQuotaThreshold: 20,
+    recoveryReminderMinutes: 10,
+    remindWeeklyQuota: true,
+    quietHoursStart: '',
+    quietHoursEnd: ''
+  }),
   newApi: Object.freeze({
     activeProviderId: 'default-new-api',
     providers: Object.freeze([
@@ -89,6 +96,7 @@ export function saveAppSettings(storage = browserStorage(), settings) {
 
 export function mergeAppSettings(settings) {
   const appearance = isObject(settings?.appearance) ? settings.appearance : {};
+  const alerts = isObject(settings?.alerts) ? settings.alerts : {};
   const newApi = isObject(settings?.newApi) ? settings.newApi : {};
   const normalizedApiKey = normalizeApiKey(newApi.apiKey ?? DEFAULT_APP_SETTINGS.newApi.apiKey);
   const normalizedAccessToken = normalizeBearerToken(newApi.accessToken ?? DEFAULT_APP_SETTINGS.newApi.accessToken);
@@ -127,6 +135,14 @@ export function mergeAppSettings(settings) {
       ...DEFAULT_APP_SETTINGS.appearance,
       theme: appearance.theme === 'light' ? 'light' : 'dark',
       capsuleDensity: appearance.capsuleDensity === 'compact' ? 'compact' : 'standard'
+    },
+    alerts: {
+      ...DEFAULT_APP_SETTINGS.alerts,
+      lowQuotaThreshold: normalizeAlertThreshold(alerts.lowQuotaThreshold),
+      recoveryReminderMinutes: normalizeRecoveryReminderMinutes(alerts.recoveryReminderMinutes),
+      remindWeeklyQuota: alerts.remindWeeklyQuota !== false,
+      quietHoursStart: normalizeQuietHour(alerts.quietHoursStart),
+      quietHoursEnd: normalizeQuietHour(alerts.quietHoursEnd)
     },
     newApi: {
       ...baseNewApi,
@@ -417,6 +433,29 @@ export function updateCapsuleDensity(settings, capsuleDensity) {
       capsuleDensity: capsuleDensity === 'compact' ? 'compact' : 'standard'
     }
   };
+}
+
+export function updateAlertSettings(settings, key, value) {
+  const alerts = {
+    ...settings.alerts,
+    [key]: value
+  };
+  return mergeAppSettings({ ...settings, alerts });
+}
+
+function normalizeAlertThreshold(value) {
+  const number = Number(value);
+  return [10, 20, 30].includes(number) ? number : DEFAULT_APP_SETTINGS.alerts.lowQuotaThreshold;
+}
+
+function normalizeRecoveryReminderMinutes(value) {
+  const number = Number(value);
+  return [5, 10, 15, 30].includes(number) ? number : DEFAULT_APP_SETTINGS.alerts.recoveryReminderMinutes;
+}
+
+function normalizeQuietHour(value) {
+  const text = String(value ?? '').trim();
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(text) ? text : '';
 }
 
 function normalizeApiKey(value) {

@@ -60,6 +60,10 @@ assert.match(css, /\[data-theme="dark"\]\.settings-window-shell/);
 assert.match(css, /\[data-theme="dark"\]\.detail-window-shell/);
 assert.match(css, /\.capsule-refresh-note\s*{/);
 assert.match(css, /\.quota-refresh-card\s*{/);
+assert.match(css, /\.capsule-metrics > div\.is-low\s*{/);
+assert.match(css, /\.capsule-metrics > div\.is-critical\s*{/);
+assert.match(css, /\.capsule-last-updated\s*{/);
+assert.match(css, /\.quota-trust-banner\s*{/);
 assert.match(css, /\.draggable-capsule\[data-popover-placement="top"\]\s+\.capsule-popover\s*{[\s\S]*bottom:\s*calc\(100% \+ 8px\);/);
 assert.match(css, /\.draggable-capsule\[data-desktop-shell="true"\]\[data-popover-placement="top"\]\s*{[\s\S]*top:\s*0;/);
 

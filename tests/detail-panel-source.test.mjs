@@ -24,6 +24,9 @@ assert.match(source, /数据更新/);
 assert.match(source, /snapshot\.localLogs\?\.today\?\.latestLogAt/);
 assert.match(source, /数据状态/);
 assert.match(source, /formatDataFreshness/);
+assert.match(source, /QuotaTrust/);
+assert.match(source, /实时官方接口/);
+assert.match(source, /本地会话估算/);
 assert.match(source, /可能偏旧/);
 
 console.log('detail panel source tests passed');

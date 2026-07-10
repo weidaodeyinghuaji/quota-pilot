@@ -19,5 +19,8 @@ assert.match(alerts[1].title, /5 小时额度即将恢复/);
 assert.match(alerts[2].title, /7 天额度不足/);
 assert.equal(getQuotaAlertCandidates({ providerType: 'new-api' }, now).length, 0);
 assert.equal(formatQuotaRecovery('2026-07-10T10:08:00.000Z', now), '约 8 分钟后恢复');
+assert.equal(getQuotaAlertCandidates(snapshot, { now, lowQuotaThreshold: 10 }).length, 1);
+assert.equal(getQuotaAlertCandidates(snapshot, { now, remindWeeklyQuota: false }).length, 2);
+assert.equal(getQuotaAlertCandidates(snapshot, { now, recoveryReminderMinutes: 5 }).length, 2);
 
 console.log('quota alerts tests passed');

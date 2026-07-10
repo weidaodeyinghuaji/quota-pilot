@@ -1,21 +1,24 @@
-const LOW_QUOTA_THRESHOLD = 20;
-const RECOVERY_SOON_MS = 10 * 60 * 1000;
-
-export function getQuotaAlertCandidates(snapshot, now = Date.now()) {
+export function getQuotaAlertCandidates(snapshot, options = {}) {
   if (snapshot?.providerType !== 'codex') return [];
+  const normalizedOptions = typeof options === 'number' ? { now: options } : options;
+  const now = Number(normalizedOptions.now) || Date.now();
+  const lowQuotaThreshold = normalizeThreshold(normalizedOptions.lowQuotaThreshold);
+  const recoverySoonMs = normalizeRecoveryMinutes(normalizedOptions.recoveryReminderMinutes) * 60 * 1000;
+  const remindWeeklyQuota = normalizedOptions.remindWeeklyQuota !== false;
 
   const windows = [
     { id: '5h', label: '5 小时额度', quota: snapshot.quota?.window5h },
-    { id: '7d', label: '7 天额度', quota: snapshot.quota?.weekly }
+    { id: '7d', label: '7 天额度', quota: snapshot.quota?.weekly, enabled: remindWeeklyQuota }
   ];
   const alerts = [];
 
   for (const window of windows) {
+    if (window.enabled === false) continue;
     const remaining = Number(window.quota?.remainingPercent);
     const resetAt = parseResetAt(window.quota?.resetAt);
     const cycleId = resetAt ?? snapshot.updatedAt ?? 'unknown';
 
-    if (Number.isFinite(remaining) && remaining < LOW_QUOTA_THRESHOLD) {
+    if (Number.isFinite(remaining) && remaining < lowQuotaThreshold) {
       alerts.push({
         id: `low-${window.id}-${cycleId}`,
         title: `${window.label}不足`,
@@ -25,7 +28,7 @@ export function getQuotaAlertCandidates(snapshot, now = Date.now()) {
 
     if (window.id === '5h' && resetAt) {
       const remainingMs = resetAt - now;
-      if (remainingMs > 0 && remainingMs <= RECOVERY_SOON_MS) {
+      if (remainingMs > 0 && remainingMs <= recoverySoonMs) {
         alerts.push({
           id: `recovery-soon-${window.id}-${resetAt}`,
           title: '5 小时额度即将恢复',
@@ -36,6 +39,16 @@ export function getQuotaAlertCandidates(snapshot, now = Date.now()) {
   }
 
   return alerts;
+}
+
+function normalizeThreshold(value) {
+  const number = Number(value);
+  return [10, 20, 30].includes(number) ? number : 20;
+}
+
+function normalizeRecoveryMinutes(value) {
+  const number = Number(value);
+  return [5, 10, 15, 30].includes(number) ? number : 10;
 }
 
 export function formatQuotaRecovery(resetAt, now = Date.now()) {

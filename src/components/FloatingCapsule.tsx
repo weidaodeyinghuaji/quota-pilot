@@ -11,6 +11,7 @@ interface Props {
   updateAvailable?: boolean;
   onClick?: () => void;
   onRefresh?: () => void;
+  refreshState?: { status: 'idle' | 'loading' | 'success' | 'error'; updatedAt: string };
   onToggleTheme?: () => void;
   onOpenSettings?: () => void;
 }
@@ -23,6 +24,7 @@ export default function FloatingCapsule({
   updateAvailable = false,
   onClick,
   onRefresh,
+  refreshState = { status: 'idle', updatedAt: '' },
   onToggleTheme,
   onOpenSettings
 }: Props) {
@@ -68,9 +70,12 @@ export default function FloatingCapsule({
       </button>
       {density === 'standard' && (
         <div className="capsule-actions" aria-label="快捷操作" data-no-drag="true">
-          <button type="button" title="立即刷新" onClick={onRefresh}>刷新</button>
+          <button disabled={refreshState.status === 'loading'} type="button" title="立即刷新" onClick={onRefresh}>
+            {refreshState.status === 'loading' ? '刷新中' : '刷新'}
+          </button>
           <button type="button" title="切换深浅主题" onClick={onToggleTheme}>主题</button>
           <button type="button" title="打开设置" onClick={onOpenSettings}>设置</button>
+          <span className={`capsule-last-updated is-${refreshState.status}`}>{formatRefreshState(refreshState)}</span>
         </div>
       )}
       {updateAvailable && (
@@ -87,7 +92,7 @@ function Metric({ label, value, progress }: { label: string; value: string; prog
     ? Math.min(100, Math.max(0, Number(progress)))
     : undefined;
   return (
-    <div>
+    <div className={getMetricState(normalizedProgress)}>
       <span>{label}</span>
       <strong>{value}</strong>
       {normalizedProgress !== undefined && (
@@ -95,6 +100,22 @@ function Metric({ label, value, progress }: { label: string; value: string; prog
       )}
     </div>
   );
+}
+
+function getMetricState(progress?: number) {
+  if (progress === undefined) return '';
+  if (progress < 10) return 'is-critical';
+  if (progress < 20) return 'is-low';
+  return '';
+}
+
+function formatRefreshState(refreshState: Props['refreshState']) {
+  if (refreshState?.status === 'loading') return '正在刷新数据';
+  if (refreshState?.status === 'error') return '刷新失败，请重试';
+  if (!refreshState?.updatedAt) return '尚未手动刷新';
+  const date = new Date(refreshState.updatedAt);
+  if (Number.isNaN(date.getTime())) return '刚刚更新';
+  return `上次更新 ${date.toLocaleTimeString('zh-CN', { hour12: false })}`;
 }
 
 function getCapsuleMetrics(snapshot: ProviderSnapshot | null) {

@@ -21,6 +21,7 @@ import {
   saveAppSettings,
   updateCapsulePosition,
   updateAppearanceTheme,
+  updateAlertSettings,
   updateCapsuleDensity,
   createNewApiProviderDraft,
   deleteNewApiProvider,
@@ -45,6 +46,8 @@ export default function App() {
   const [settings, setSettings] = React.useState(() => loadAppSettings());
   const [newApiSnapshot, setNewApiSnapshot] = React.useState(null);
   const [manualRefreshNonce, setManualRefreshNonce] = React.useState(0);
+  const [quickRefreshState, setQuickRefreshState] = React.useState({ status: 'idle', updatedAt: '' });
+  const quickRefreshInFlightRef = React.useRef(false);
   const [codexStatus, setCodexStatus] = React.useState(null);
   const [codexStatusLoaded, setCodexStatusLoaded] = React.useState(false);
   const lastNewApiSnapshotRef = React.useRef(null);
@@ -92,7 +95,8 @@ export default function App() {
   React.useEffect(() => {
     if (!isDesktopCapsule || !window.codexQuotaDesktop?.showQuotaAlert) return;
     const nextSeenIds = new Set(seenQuotaAlertIdsRef.current);
-    const alerts = getQuotaAlertCandidates(activeSnapshot);
+    if (isQuietHours(settings.alerts)) return;
+    const alerts = getQuotaAlertCandidates(activeSnapshot, settings.alerts);
     for (const alert of alerts) {
       if (nextSeenIds.has(alert.id)) continue;
       nextSeenIds.add(alert.id);
@@ -102,7 +106,7 @@ export default function App() {
       seenQuotaAlertIdsRef.current = nextSeenIds;
       saveSeenQuotaAlertIds(nextSeenIds);
     }
-  }, [activeSnapshot, isDesktopCapsule]);
+  }, [activeSnapshot, isDesktopCapsule, settings.alerts]);
 
   const runUpdateCheck = React.useCallback(async ({ silent = false } = {}) => {
     if (!silent) {
@@ -369,12 +373,30 @@ export default function App() {
     settings.newApi.topupRefreshIntervalSeconds
   ]);
 
-  const handleQuickRefresh = React.useCallback(() => {
+  const handleQuickRefresh = React.useCallback(async () => {
+    if (quickRefreshInFlightRef.current) return;
+    quickRefreshInFlightRef.current = true;
+    setQuickRefreshState({ status: 'loading', updatedAt: quickRefreshState.updatedAt });
     setManualRefreshNonce((value) => value + 1);
-    if (activeSnapshot?.providerType === 'new-api') {
-      runPlatformSync({ manual: true }).catch(() => {});
+    try {
+      if (activeSnapshot?.providerType === 'new-api') {
+        const result = await runPlatformSync({ manual: true });
+        if (!result) throw new Error('刷新失败');
+      }
+      setQuickRefreshState({ status: 'success', updatedAt: new Date().toISOString() });
+    } catch {
+      setQuickRefreshState((current) => ({ ...current, status: 'error' }));
+    } finally {
+      quickRefreshInFlightRef.current = false;
     }
-  }, [activeSnapshot?.providerType, runPlatformSync]);
+  }, [activeSnapshot?.providerType, quickRefreshState.updatedAt, runPlatformSync]);
+
+  const handleTestQuotaAlert = React.useCallback(() => {
+    window.codexQuotaDesktop?.showQuotaAlert({
+      title: 'QuotaPilot 测试提醒',
+      body: '提醒功能正常。此通知不会影响真实额度提醒。'
+    });
+  }, []);
 
   React.useEffect(() => {
     let active = true;
@@ -509,6 +531,8 @@ export default function App() {
           settings={settings}
           onThemeChange={(theme) => setSettings((current) => updateAppearanceTheme(current, theme))}
           onCapsuleDensityChange={(density) => setSettings((current) => updateCapsuleDensity(current, density))}
+          onAlertSettingsChange={(key, value) => setSettings((current) => updateAlertSettings(current, key, value))}
+          onTestQuotaAlert={handleTestQuotaAlert}
           onNewApiChange={(key, value) => setSettings((current) => updateNewApiSettings(current, key, value))}
           onPricingChange={(key, value) => setSettings((current) => updatePricingProfile(current, key, value))}
           onProviderSave={(provider) => setSettings((current) => upsertNewApiProvider(current, provider))}
@@ -565,6 +589,7 @@ export default function App() {
                 setSettingsOpen(true);
               }}
               onRefresh={handleQuickRefresh}
+              refreshState={quickRefreshState}
               onToggleTheme={() => setSettings((current) => updateAppearanceTheme(current, current.appearance.theme === 'dark' ? 'light' : 'dark'))}
               updateAvailable={Boolean(updateCheckState.isNewer)}
               snapshot={activeSnapshot}
@@ -593,6 +618,8 @@ export default function App() {
           settings={settings}
           onThemeChange={(theme) => setSettings((current) => updateAppearanceTheme(current, theme))}
           onCapsuleDensityChange={(density) => setSettings((current) => updateCapsuleDensity(current, density))}
+          onAlertSettingsChange={(key, value) => setSettings((current) => updateAlertSettings(current, key, value))}
+          onTestQuotaAlert={handleTestQuotaAlert}
             onNewApiChange={(key, value) => setSettings((current) => updateNewApiSettings(current, key, value))}
             onPricingChange={(key, value) => setSettings((current) => updatePricingProfile(current, key, value))}
             onProviderSave={(provider) => setSettings((current) => upsertNewApiProvider(current, provider))}
@@ -846,6 +873,23 @@ function UpdateReminder({
 }
 
 const QUOTA_ALERT_STORAGE_KEY = 'quotaPilotSeenQuotaAlerts';
+
+function isQuietHours(alerts: { quietHoursStart?: string; quietHoursEnd?: string }) {
+  const start = parseQuietHour(alerts.quietHoursStart);
+  const end = parseQuietHour(alerts.quietHoursEnd);
+  if (start === undefined || end === undefined || start === end) return false;
+  const now = new Date();
+  const current = now.getHours() * 60 + now.getMinutes();
+  return start < end ? current >= start && current < end : current >= start || current < end;
+}
+
+function parseQuietHour(value?: string) {
+  const match = String(value ?? '').match(/^(\d{2}):(\d{2})$/);
+  if (!match) return undefined;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  return hours <= 23 && minutes <= 59 ? hours * 60 + minutes : undefined;
+}
 
 function loadSeenQuotaAlertIds() {
   try {

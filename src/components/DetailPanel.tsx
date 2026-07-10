@@ -44,6 +44,7 @@ function CodexDetails({ snapshot }: { snapshot: ProviderSnapshot }) {
 
   return (
     <>
+      <QuotaTrust source={snapshot.quota?.source} updatedAt={snapshot.updatedAt} />
       {hasCodexQuotaData && (
         <div className="quota-refresh-grid" aria-label="额度恢复时间">
           <QuotaRefreshCard label="5 小时额度恢复" resetAt={snapshot.quota?.window5h?.resetAt} />
@@ -98,6 +99,16 @@ function CodexDetails({ snapshot }: { snapshot: ProviderSnapshot }) {
       )}
       </dl>
     </>
+  );
+}
+
+function QuotaTrust({ source, updatedAt }: { source?: string; updatedAt?: string }) {
+  const trust = getQuotaTrust(source);
+  return (
+    <div className={`quota-trust-banner is-${trust.level}`}>
+      <strong>{trust.title}</strong>
+      <span>{trust.description} · 更新于 {formatDateTime(updatedAt)}</span>
+    </div>
   );
 }
 
@@ -373,8 +384,18 @@ function statusText(status?: string) {
 }
 
 function formatQuotaSource(source?: string) {
-  if (source === 'codex-rpc') return 'Codex app-server';
-  if (source === 'codex-session') return '本地会话';
-  if (source === 'cache') return '缓存';
+  if (source === 'codex-rpc') return '实时官方接口（Codex app-server）';
+  if (source === 'codex-session') return '本地会话数据';
+  if (source === 'cache') return '本地缓存';
   return source || '-';
+}
+
+function getQuotaTrust(source?: string) {
+  if (source === 'codex-rpc') {
+    return { level: 'realtime', title: '数据可信度：实时官方接口', description: '来自 Codex app-server 的当前额度' };
+  }
+  if (source === 'cache') {
+    return { level: 'cached', title: '数据可信度：缓存数据', description: '当前无法确认实时接口，显示最近成功读取的结果' };
+  }
+  return { level: 'local', title: '数据可信度：本地会话估算', description: '来自本机 Codex 会话记录，不等同于实时官方额度' };
 }

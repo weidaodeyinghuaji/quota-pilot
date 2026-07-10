@@ -20,7 +20,7 @@ assert.match(appSource, /if \(isDetailWindow\) return;/);
 assert.match(appSource, /!isDesktopCapsule && \(\s*<UpdateReminder/);
 assert.match(appSource, /updateAvailable=\{Boolean\(updateCheckState\.isNewer\)\}/);
 
-assert.match(settingsSource, /type SettingsTab = 'api' \| 'sync' \| 'about';/);
+assert.match(settingsSource, /type SettingsTab = 'api' \| 'sync' \| 'alerts' \| 'about';/);
 assert.match(settingsSource, /关于\/更新/);
 assert.match(settingsSource, /AboutUpdateSection/);
 assert.match(settingsSource, /GITHUB_REPOSITORY_URL/);

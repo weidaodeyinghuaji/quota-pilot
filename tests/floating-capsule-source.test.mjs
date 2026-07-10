@@ -25,5 +25,8 @@ assert.match(source, /capsule-progress/);
 assert.match(source, /同步失败/);
 assert.match(source, /5 小时刷新/);
 assert.match(source, /formatResetTime/);
+assert.match(source, /refreshState/);
+assert.match(source, /capsule-last-updated/);
+assert.match(source, /is-critical/);
 
 console.log('floating capsule source tests passed');

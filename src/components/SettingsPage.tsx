@@ -4,12 +4,14 @@ import { validateBaseUrl } from '../lib/validation.mjs';
 import { GITHUB_RELEASES_URL, GITHUB_REPOSITORY_URL } from '../lib/updateChecker.mjs';
 import type { AppSettings, NewApiManagedProvider, UpdateCheckState } from '../types/settings';
 
-type SettingsTab = 'api' | 'sync' | 'about';
+type SettingsTab = 'api' | 'sync' | 'alerts' | 'about';
 
 interface Props {
   settings: AppSettings;
   onThemeChange: (theme: 'dark' | 'light') => void;
   onCapsuleDensityChange: (density: 'compact' | 'standard') => void;
+  onAlertSettingsChange: (key: string, value: string | boolean) => void;
+  onTestQuotaAlert: () => void;
   onNewApiChange: (key: string, value: string) => void;
   onPricingChange: (key: string, value: string) => void;
   onProviderSave: (provider: NewApiManagedProvider) => void;
@@ -37,6 +39,8 @@ export default function SettingsPage({
   settings,
   onThemeChange,
   onCapsuleDensityChange,
+  onAlertSettingsChange,
+  onTestQuotaAlert,
   onNewApiChange,
   onProviderSave,
   onProviderSelect,
@@ -116,6 +120,9 @@ export default function SettingsPage({
           </TabButton>
           <TabButton active={activeTab === 'sync'} onClick={() => setActiveTab('sync')}>
             同步
+          </TabButton>
+          <TabButton active={activeTab === 'alerts'} onClick={() => setActiveTab('alerts')}>
+            提醒
           </TabButton>
           <TabButton active={activeTab === 'about'} badge={Boolean(updateCheckState.isNewer)} onClick={() => setActiveTab('about')}>
             关于/更新
@@ -289,6 +296,65 @@ export default function SettingsPage({
             onCheckUpdate={onCheckUpdate}
             onOpenUpdateWindow={onOpenUpdateWindow}
           />
+        )}
+        {activeTab === 'alerts' && (
+          <section className="settings-section">
+            <h2>配额提醒</h2>
+            <label>
+              低额度提醒阈值
+              <select
+                value={settings.alerts.lowQuotaThreshold}
+                onChange={(event) => onAlertSettingsChange('lowQuotaThreshold', event.currentTarget.value)}
+              >
+                <option value="10">低于 10%</option>
+                <option value="20">低于 20%</option>
+                <option value="30">低于 30%</option>
+              </select>
+              <span className="field-hint">官方 5 小时额度会提醒；可选是否同时提醒 7 天额度。</span>
+            </label>
+            <label>
+              5 小时额度恢复前提醒
+              <select
+                value={settings.alerts.recoveryReminderMinutes}
+                onChange={(event) => onAlertSettingsChange('recoveryReminderMinutes', event.currentTarget.value)}
+              >
+                <option value="5">提前 5 分钟</option>
+                <option value="10">提前 10 分钟</option>
+                <option value="15">提前 15 分钟</option>
+                <option value="30">提前 30 分钟</option>
+              </select>
+            </label>
+            <label className="checkbox-field">
+              <input
+                checked={settings.alerts.remindWeeklyQuota}
+                type="checkbox"
+                onChange={(event) => onAlertSettingsChange('remindWeeklyQuota', event.currentTarget.checked)}
+              />
+              同时提醒 7 天额度
+            </label>
+            <div className="quiet-hours-grid">
+              <label>
+                静默开始
+                <input
+                  type="time"
+                  value={settings.alerts.quietHoursStart}
+                  onChange={(event) => onAlertSettingsChange('quietHoursStart', event.currentTarget.value)}
+                />
+              </label>
+              <label>
+                静默结束
+                <input
+                  type="time"
+                  value={settings.alerts.quietHoursEnd}
+                  onChange={(event) => onAlertSettingsChange('quietHoursEnd', event.currentTarget.value)}
+                />
+              </label>
+            </div>
+            <span className="field-hint">留空表示不静默；跨午夜时间段也会生效。静默结束后，仍满足条件的低额度会继续提醒。</span>
+            <div className="settings-actions">
+              <button className="secondary-action" type="button" onClick={onTestQuotaAlert}>发送测试提醒</button>
+            </div>
+          </section>
         )}
       </div>
     </section>

@@ -39,6 +39,13 @@ export interface AppSettings {
     theme: 'dark' | 'light';
     capsuleDensity: 'compact' | 'standard';
   };
+  alerts: {
+    lowQuotaThreshold: number;
+    recoveryReminderMinutes: number;
+    remindWeeklyQuota: boolean;
+    quietHoursStart: string;
+    quietHoursEnd: string;
+  };
   newApi: {
     activeProviderId: string;
     providers: NewApiManagedProvider[];

@@ -7,6 +7,7 @@ import {
   selectNewApiProvider,
   deleteNewApiProvider,
   updateCapsuleDensity,
+  updateAlertSettings,
   updateAppearanceTheme,
   updateCapsulePosition,
   updateNewApiSettings,
@@ -20,6 +21,7 @@ assert.equal(DEFAULT_APP_SETTINGS.pricingProfile.initialBalance, 0);
 assert.equal(DEFAULT_APP_SETTINGS.pricingProfile.totalRecharged, 0);
 assert.equal(DEFAULT_APP_SETTINGS.appearance.theme, 'dark');
 assert.equal(DEFAULT_APP_SETTINGS.appearance.capsuleDensity, 'standard');
+assert.equal(DEFAULT_APP_SETTINGS.alerts.lowQuotaThreshold, 20);
 assert.deepEqual(DEFAULT_APP_SETTINGS.window.capsulePosition, { x: 28, y: 28 });
 
 const existingStorage = createMemoryStorage({
@@ -57,6 +59,7 @@ assert.equal(loaded.pricingProfile.modelRatio, 1.7);
 assert.equal(loaded.pricingProfile.outputPricePerMillion, 8);
 assert.deepEqual(loaded.window.capsulePosition, { x: 121, y: 42 });
 assert.equal(loaded.appearance.theme, 'dark');
+assert.equal(loaded.alerts.recoveryReminderMinutes, 10);
 
 const lightTheme = updateAppearanceTheme(loaded, 'light');
 assert.equal(lightTheme.appearance.theme, 'light');
@@ -64,6 +67,9 @@ assert.equal(loaded.appearance.theme, 'dark');
 const compactCapsule = updateCapsuleDensity(loaded, 'compact');
 assert.equal(compactCapsule.appearance.capsuleDensity, 'compact');
 assert.equal(loaded.appearance.capsuleDensity, 'standard');
+const alertSettings = updateAlertSettings(loaded, 'quietHoursStart', '23:30');
+assert.equal(alertSettings.alerts.quietHoursStart, '23:30');
+assert.equal(loaded.alerts.quietHoursStart, '');
 
 const movedCapsule = updateCapsulePosition(loaded, { x: 333.4, y: 88.8 });
 assert.deepEqual(movedCapsule.window.capsulePosition, { x: 333, y: 89 });

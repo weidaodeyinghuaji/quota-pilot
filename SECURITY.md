@@ -26,7 +26,7 @@ Bearer ...abcd
 运行数据默认存储在：
 
 ```text
-%LocalAppData%\CodexQuotaGlance\data\
+%LocalAppData%\QuotaPilot\data\
 ```
 
 这些文件不应提交到 Git：

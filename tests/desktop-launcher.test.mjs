@@ -93,7 +93,7 @@ assert.match(electronMain, /app\.getAppPath\(\)/);
 assert.match(electronMain, /local-api\/health/);
 assert.match(electronMain, /electron-local-backend/);
 assert.match(backend, /startLocalBackend/);
-assert.match(backend, /CodexQuotaGlance/);
+assert.match(backend, /QuotaPilot/);
 assert.match(electronPreload, /updateDetailLayout/);
 assert.match(electronMain, /onCodexSessionChanged:\s*notifyCapsuleDataInvalidated/);
 assert.match(electronMain, /desktop-data-invalidated/);
@@ -108,6 +108,6 @@ assert.doesNotMatch(electronMain, /local-server\.py/);
 assert.doesNotMatch(electronMain, /local-server\.exe/);
 assert.doesNotMatch(readme, /npm run package-electron/);
 assert.match(readme, /npm run dist:win/);
-assert.match(readme, /dist-electron\\CodexQuotaGlance-<version>-win-x64\.exe/);
+assert.match(readme, /dist-electron\\QuotaPilot-<version>-win-x64\.exe/);
 
 console.log('desktop launcher tests passed');

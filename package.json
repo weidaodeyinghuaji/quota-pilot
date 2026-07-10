@@ -1,17 +1,17 @@
 {
-  "name": "codex-quota-glance",
-  "version": "0.1.11",
-  "description": "Windows floating quota and token usage monitor for Codex and New API providers.",
+  "name": "quota-pilot",
+  "version": "0.2.0",
+  "description": "Windows desktop dashboard for the active Codex account and API usage.",
   "private": false,
   "license": "MIT",
-  "author": "akitten-cn",
-  "homepage": "https://github.com/akitten-cn/codex-quota-glance#readme",
+  "author": "Song Jianguo",
+  "homepage": "https://github.com/weidaodeyinghuaji/quota-pilot#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/akitten-cn/codex-quota-glance.git"
+    "url": "https://github.com/weidaodeyinghuaji/quota-pilot.git"
   },
   "bugs": {
-    "url": "https://github.com/akitten-cn/codex-quota-glance/issues"
+    "url": "https://github.com/weidaodeyinghuaji/quota-pilot/issues"
   },
   "type": "module",
   "main": "electron/main.cjs",
@@ -27,9 +27,9 @@
     "ci": "npm run scan:secrets && npm test && npm run build"
   },
   "build": {
-    "appId": "cn.akitten.codexQuotaGlance",
-    "productName": "Codex Quota Glance",
-    "artifactName": "CodexQuotaGlance-${version}-${os}-${arch}.${ext}",
+    "appId": "com.weidaodeyinghuaji.quotapilot",
+    "productName": "QuotaPilot",
+    "artifactName": "QuotaPilot-${version}-${os}-${arch}.${ext}",
     "directories": {
       "output": "dist-electron"
     },
@@ -73,16 +73,16 @@
       "include": "installer/installer.nsh",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Codex Quota Glance"
+      "shortcutName": "QuotaPilot"
     },
     "portable": {
-      "artifactName": "CodexQuotaGlance-${version}-win-${arch}-portable.${ext}"
+      "artifactName": "QuotaPilot-${version}-win-${arch}-portable.${ext}"
     },
     "publish": [
       {
         "provider": "github",
-        "owner": "akitten-cn",
-        "repo": "codex-quota-glance"
+        "owner": "weidaodeyinghuaji",
+        "repo": "quota-pilot"
       }
     ]
   },

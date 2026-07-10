@@ -28,7 +28,7 @@ npm run dist:win
 
 - 前端使用 React + TypeScript。
 - 桌面壳和本地后端使用 Electron + Node。
-- 本地数据使用 SQLite，数据库文件位于 `%LocalAppData%\CodexQuotaGlance\data\`。
+- 本地数据使用 SQLite，数据库文件位于 `%LocalAppData%\QuotaPilot\data\`。
 - 保持桌面工具风格：紧凑、可扫描、低干扰。
 
 ## 发布

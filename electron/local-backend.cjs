@@ -27,8 +27,8 @@ const CODEX_SESSION_DISCOVERY_TTL_SECONDS = 5;
 const CODEX_RATE_LIMIT_CACHE_TTL_SECONDS = 60;
 const CODEX_SESSION_WATCH_DEBOUNCE_MS = 100;
 const CODEX_ACTIVITY_STALE_MS = 15 * 1000;
-const GITHUB_LATEST_RELEASE_URL = 'https://github.com/akitten-cn/codex-quota-glance/releases/latest';
-const GITHUB_LATEST_RELEASE_API_URL = 'https://api.github.com/repos/akitten-cn/codex-quota-glance/releases/latest';
+const GITHUB_LATEST_RELEASE_URL = 'https://github.com/weidaodeyinghuaji/quota-pilot/releases/latest';
+const GITHUB_LATEST_RELEASE_API_URL = 'https://api.github.com/repos/weidaodeyinghuaji/quota-pilot/releases/latest';
 
 let server = null;
 let database = null;
@@ -150,7 +150,7 @@ async function handleRequest(request, response) {
   if (request.method === 'GET' && requestUrl.pathname === '/local-api/health') {
     sendJson(response, 200, {
       ok: true,
-      app: 'codex-quota-glance',
+      app: 'quota-pilot',
       backend: 'electron-local-backend'
     });
     return;
@@ -234,7 +234,7 @@ async function getLatestRelease() {
     method: 'GET',
     headers: {
       Accept: 'application/vnd.github+json',
-      'User-Agent': 'CodexQuotaGlance/0.1'
+      'User-Agent': 'QuotaPilot/0.1'
     }
   });
   if (apiResponse.ok) {
@@ -256,7 +256,7 @@ async function getLatestRelease() {
     redirect: 'manual',
     headers: {
       Accept: 'text/html',
-      'User-Agent': 'CodexQuotaGlance/0.1'
+      'User-Agent': 'QuotaPilot/0.1'
     }
   });
   const location = response.headers.get('location');
@@ -281,7 +281,7 @@ function resolvePaths(options) {
   const dataDir = path.resolve(
     process.env.CODEX_QUOTA_DATA_DIR ||
       (process.env.LOCALAPPDATA
-        ? path.join(process.env.LOCALAPPDATA, 'CodexQuotaGlance', 'data')
+        ? path.join(process.env.LOCALAPPDATA, 'QuotaPilot', 'data')
         : path.join(appRoot, 'data'))
   );
   const codexHome = path.resolve(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'));
@@ -1190,7 +1190,7 @@ async function fetchCodexRateLimitsRpc() {
       processRef.stdin.write(`${JSON.stringify({ method, params })}\n`);
     };
     (async () => {
-      const init = await sendRequest('initialize', { clientInfo: { name: 'codex-quota-glance', version: '0.1.0' } });
+      const init = await sendRequest('initialize', { clientInfo: { name: 'quota-pilot', version: '0.1.0' } });
       if (!init || init.error) {
         finish({ quota: {}, source: 'codex-rpc', message: rpcErrorMessage(init, '初始化 Codex RPC 失败') });
         return;

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const output = join(tmpdir(), `codex-quota-glance-release-notes-${Date.now()}.md`);
+const output = join(tmpdir(), `quota-pilot-release-notes-${Date.now()}.md`);
 const script = fileURLToPath(new URL('../scripts/extract-release-notes.mjs', import.meta.url));
 const cwd = fileURLToPath(new URL('..', import.meta.url));
 if (existsSync(output)) rmSync(output);

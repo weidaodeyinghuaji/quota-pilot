@@ -39,9 +39,9 @@ git push origin v0.1.0
 GitHub Actions 会自动创建 Release，并上传：
 
 ```text
-CodexQuotaGlance-<version>-win-x64.exe
-CodexQuotaGlance-<version>-win-x64-portable.exe
-CodexQuotaGlance-<version>-win-x64.zip
+QuotaPilot-<version>-win-x64.exe
+QuotaPilot-<version>-win-x64-portable.exe
+QuotaPilot-<version>-win-x64.zip
 ```
 
 ## 本地打包
@@ -58,8 +58,8 @@ dist-electron\
 
 产物包括：
 
-- NSIS 安装包：`CodexQuotaGlance-<version>-win-x64.exe`
-- 单文件便携版：`CodexQuotaGlance-<version>-win-x64-portable.exe`
-- 绿色 zip：`CodexQuotaGlance-<version>-win-x64.zip`
+- NSIS 安装包：`QuotaPilot-<version>-win-x64.exe`
+- 单文件便携版：`QuotaPilot-<version>-win-x64-portable.exe`
+- 绿色 zip：`QuotaPilot-<version>-win-x64.zip`
 
 当前主发布链路是 Electron + Node + electron-builder，不需要 Python sidecar 或 PowerShell 打包脚本。

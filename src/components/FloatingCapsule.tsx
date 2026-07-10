@@ -13,6 +13,8 @@ interface Props {
 export default function FloatingCapsule({ snapshot, activity, expanded = false, updateAvailable = false, onClick }: Props) {
   const display = getCapsuleDisplay(snapshot);
   const signal = getSignalState(activity ?? snapshot?.activity);
+  const metrics = getCapsuleMetrics(snapshot);
+  const accountLabel = getAccountLabel(snapshot);
 
   return (
     <button
@@ -21,17 +23,31 @@ export default function FloatingCapsule({ snapshot, activity, expanded = false, 
       type="button"
       onClick={onClick}
     >
-      <div className="traffic-lights" aria-label={signal.label} title={signal.label}>
-        <span className={`traffic-light traffic-close ${signal.red ? 'is-active' : ''} ${signal.red && signal.breath ? 'is-breathing' : ''}`} />
-        <span className={`traffic-light traffic-minimize ${signal.yellow ? 'is-active' : ''} ${signal.yellow && signal.breath ? 'is-breathing' : ''}`} />
-        <span className={`traffic-light traffic-ok ${signal.green ? 'is-active' : ''} ${signal.green && signal.breath ? 'is-breathing' : ''}`} />
+      <div className="capsule-status" aria-label={signal.label} title={signal.label}>
+        <div className="traffic-lights">
+          <span className={`traffic-light traffic-close ${signal.red ? 'is-active' : ''} ${signal.red && signal.breath ? 'is-breathing' : ''}`} />
+          <span className={`traffic-light traffic-minimize ${signal.yellow ? 'is-active' : ''} ${signal.yellow && signal.breath ? 'is-breathing' : ''}`} />
+          <span className={`traffic-light traffic-ok ${signal.green ? 'is-active' : ''} ${signal.green && signal.breath ? 'is-breathing' : ''}`} />
+        </div>
+        <span>{signal.label}</span>
       </div>
       <div className="capsule-copy">
         <div className="capsule-heading">
-          <strong>{display.title}</strong>
-          {display.meta ? <span className="capsule-inline">{display.subtitle}</span> : null}
+          <span className="capsule-kicker">{snapshot?.providerType === 'new-api' ? 'API PROVIDER' : 'ACTIVE CODEX LOGIN'}</span>
+          <strong>{snapshot?.providerName ?? 'QuotaPilot'}</strong>
         </div>
-        <span>{display.meta || display.subtitle}</span>
+        <span className="capsule-account">{accountLabel}</span>
+        <span className="capsule-summary">{display.meta || display.subtitle}</span>
+      </div>
+      <div className="capsule-metrics" aria-label="配额摘要">
+        <div>
+          <span>{metrics.primaryLabel}</span>
+          <strong>{metrics.primaryValue}</strong>
+        </div>
+        <div>
+          <span>{metrics.secondaryLabel}</span>
+          <strong>{metrics.secondaryValue}</strong>
+        </div>
       </div>
       {updateAvailable && (
         <span className="capsule-update-badge" title="发现新版本" aria-label="发现新版本">
@@ -40,6 +56,46 @@ export default function FloatingCapsule({ snapshot, activity, expanded = false, 
       )}
     </button>
   );
+}
+
+function getCapsuleMetrics(snapshot: ProviderSnapshot | null) {
+  if (snapshot?.providerType === 'new-api') {
+    const todayTokens = snapshot.localLogs?.today?.totalTokens ?? snapshot.usage?.totalTokens;
+    const balance = Number(snapshot.balance?.balance);
+    const currency = snapshot.amountDisplayMode === 'usd' ? 'USD' : 'CNY';
+    return {
+      primaryLabel: 'TODAY TOKEN',
+      primaryValue: formatCompact(todayTokens),
+      secondaryLabel: 'BALANCE',
+      secondaryValue: Number.isFinite(balance) ? `${currency} ${balance.toFixed(2)}` : '-'
+    };
+  }
+
+  return {
+    primaryLabel: '5H LEFT',
+    primaryValue: formatPercent(snapshot?.quota?.window5h?.remainingPercent),
+    secondaryLabel: '7D LEFT',
+    secondaryValue: formatPercent(snapshot?.quota?.weekly?.remainingPercent)
+  };
+}
+
+function getAccountLabel(snapshot: ProviderSnapshot | null) {
+  if (snapshot?.providerType === 'new-api') {
+    return snapshot.account?.username || snapshot.account?.displayName || '当前活动 API Provider';
+  }
+  return '读取当前 ~/.codex/auth.json，切换登录后自动刷新';
+}
+
+function formatPercent(value?: number) {
+  return Number.isFinite(Number(value)) ? `${Math.round(Number(value))}%` : '-';
+}
+
+function formatCompact(value?: number) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '-';
+  if (number >= 1_000_000) return `${(number / 1_000_000).toFixed(1)}M`;
+  if (number >= 1_000) return `${(number / 1_000).toFixed(1)}K`;
+  return String(number);
 }
 
 function getSignalState(activity: ProviderSnapshot['activity'] | undefined) {

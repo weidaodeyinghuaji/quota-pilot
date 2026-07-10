@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import DetailPanel from './components/DetailPanel';
 import DraggableCapsule from './components/DraggableCapsule';
 import FloatingCapsule from './components/FloatingCapsule';
@@ -660,7 +660,7 @@ function UpdateWindowShell({
       <main className="update-window-shell">
         <section className="update-reminder update-reminder-inline" aria-label="检查更新">
           <h2>正在检查更新</h2>
-          <p>启动后自动检查 Codex Quota Glance 是否有新版本。</p>
+          <p>启动后自动检查 QuotaPilot 是否有新版本。</p>
         </section>
       </main>
     );

@@ -1,6 +1,8 @@
-# Codex Quota Glance
+# QuotaPilot
 
-Codex Quota Glance 是一个 Windows 桌面悬浮胶囊工具，用来查看 Codex 官方登录余量、Codex 本地会话 Token、New API 中转站余额、今日消耗和本地估算费用。
+> 基于 [Codex Quota Glance](https://github.com/akitten-cn/codex-quota-glance) 的 MIT 许可证衍生开发。原版权与许可证完整保留在 [LICENSE](LICENSE) 和 [NOTICE.md](NOTICE.md)。
+
+QuotaPilot 是一个 Windows 桌面悬浮胶囊工具，用来查看 Codex 官方登录余量、Codex 本地会话 Token、New API 中转站余额、今日消耗和本地估算费用。
 
 它的目标不是做一个浏览器页面，而是像 TrafficMonitor 一样长期停留在桌面边缘：平时只显示一个小胶囊，点击查看详情，右键打开设置，后台低频同步平台数据。
 
@@ -16,6 +18,12 @@ Codex Quota Glance 是一个 Windows 桌面悬浮胶囊工具，用来查看 Cod
 - 消费弹窗读取本地 Codex 会话 Token，不依赖高频平台日志请求。
 - 支持人民币 / 美元显示，本地可配置汇率。
 - GitHub Releases 更新检测，在设置的“关于”页可手动检查新版本。
+
+## 账号切换行为
+
+- 官方登录模式只读取当前生效的 `%USERPROFILE%\.codex\auth.json`。
+- 你在 Codex 中切换账号后，QuotaPilot 会在下一次刷新时读取新的活动登录并更新余量；无需把账号密码或 Token 导入应用。
+- 它不会同时显示两个官方 Codex 账号，因为本机同一时刻只有一个活动 `auth.json`。多个 API Provider 则可在设置页独立保存和切换。
 
 ## 截图
 
@@ -118,19 +126,19 @@ moneyCost =
 从 GitHub Releases 下载：
 
 ```text
-CodexQuotaGlance-<version>-win-x64.zip
+QuotaPilot-<version>-win-x64.zip
 ```
 
 解压后运行：
 
 ```text
-Codex Quota Glance.exe
+QuotaPilot.exe
 ```
 
 数据会保存到：
 
 ```text
-%LocalAppData%\CodexQuotaGlance\data\
+%LocalAppData%\QuotaPilot\data\
 ```
 
 绿色包不包含你的本地数据库、设置、API key 或日志。
@@ -175,9 +183,9 @@ npm run dist:win
 输出：
 
 ```text
-dist-electron\CodexQuotaGlance-<version>-win-x64.exe
-dist-electron\CodexQuotaGlance-<version>-win-x64-portable.exe
-dist-electron\CodexQuotaGlance-<version>-win-x64.zip
+dist-electron\QuotaPilot-<version>-win-x64.exe
+dist-electron\QuotaPilot-<version>-win-x64-portable.exe
+dist-electron\QuotaPilot-<version>-win-x64.zip
 ```
 
 其中 `.exe` 安装包为 NSIS 安装版，`portable.exe` 为单文件便携版，`.zip` 为绿色版。
@@ -201,9 +209,9 @@ git push origin v0.1.0
 GitHub Actions 会生成：
 
 ```text
-CodexQuotaGlance-<version>-win-x64.exe
-CodexQuotaGlance-<version>-win-x64-portable.exe
-CodexQuotaGlance-<version>-win-x64.zip
+QuotaPilot-<version>-win-x64.exe
+QuotaPilot-<version>-win-x64-portable.exe
+QuotaPilot-<version>-win-x64.zip
 ```
 
 ## 安全和隐私
@@ -232,7 +240,7 @@ npm run scan:secrets
 npm run clean:generated
 ```
 
-当前应用会把运行数据写到 `%LocalAppData%\CodexQuotaGlance\data\`。源码仓库不会包含这些数据。
+当前应用会把运行数据写到 `%LocalAppData%\QuotaPilot\data\`。源码仓库不会包含这些数据。
 
 如果你发现泄露风险，请不要在公开 issue 中粘贴密钥或日志，参考 [SECURITY.md](SECURITY.md)。
 
@@ -247,7 +255,7 @@ npm run clean:generated
 应用会使用 GitHub Releases 作为更新源，在设置的“关于”页中可手动检查：
 
 ```text
-https://api.github.com/repos/akitten-cn/codex-quota-glance/releases/latest
+https://api.github.com/repos/weidaodeyinghuaji/quota-pilot/releases/latest
 ```
 
 如果发现新版本，会弹出提醒；用户选择“本次运行不再提醒”后，本次运行内不会再次弹出，但关于页仍会显示更新状态。

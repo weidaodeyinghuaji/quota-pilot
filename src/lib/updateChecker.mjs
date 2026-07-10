@@ -1,8 +1,8 @@
-export const APP_VERSION = '0.1.11';
-export const GITHUB_REPOSITORY_URL = 'https://github.com/akitten-cn/codex-quota-glance';
+export const APP_VERSION = '0.2.0';
+export const GITHUB_REPOSITORY_URL = 'https://github.com/weidaodeyinghuaji/quota-pilot';
 export const GITHUB_RELEASES_URL = `${GITHUB_REPOSITORY_URL}/releases`;
 export const GITHUB_LATEST_RELEASE_API_URL =
-  'https://api.github.com/repos/akitten-cn/codex-quota-glance/releases/latest';
+  'https://api.github.com/repos/weidaodeyinghuaji/quota-pilot/releases/latest';
 export const LOCAL_LATEST_RELEASE_API_URL = '/local-api/update/latest';
 
 export function normalizeVersionTag(value) {

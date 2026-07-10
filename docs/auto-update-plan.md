@@ -7,7 +7,7 @@
 设置窗口的“关于”页可以手动检查：
 
 ```http
-GET https://api.github.com/repos/akitten-cn/codex-quota-glance/releases/latest
+GET https://api.github.com/repos/weidaodeyinghuaji/quota-pilot/releases/latest
 ```
 
 比较规则：

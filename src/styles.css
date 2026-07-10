@@ -193,17 +193,17 @@ body:has(.detail-window-shell) {
   width: max-content;
   min-width: 380px;
   max-width: min(calc(100vw - 56px), 720px);
-  min-height: 56px;
+  min-height: 74px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(180px, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 999px;
-  padding: 10px 16px;
+  gap: 14px;
+  border: 1px solid rgba(130, 204, 255, 0.22);
+  border-radius: 18px;
+  padding: 11px 14px;
   color: #f8fbff;
-  background: linear-gradient(180deg, rgba(39, 46, 56, 0.96), rgba(23, 28, 35, 0.96));
-  box-shadow: 0 2px 8px rgba(17, 24, 39, 0.12);
+  background: linear-gradient(135deg, rgba(18, 36, 52, 0.98), rgba(26, 31, 43, 0.98));
+  box-shadow: 0 12px 30px rgba(8, 19, 31, 0.22);
   user-select: none;
   border-style: solid;
   font: inherit;
@@ -231,8 +231,8 @@ body:has(.detail-window-shell) {
 }
 
 .floating-capsule:hover {
-  border-color: rgba(255, 255, 255, 0.22);
-  background: linear-gradient(180deg, rgba(45, 53, 64, 0.96), rgba(27, 32, 40, 0.96));
+  border-color: rgba(117, 214, 255, 0.52);
+  background: linear-gradient(135deg, rgba(20, 48, 68, 0.99), rgba(31, 37, 52, 0.99));
 }
 
 .capsule-popover {
@@ -317,6 +317,16 @@ body:has(.detail-window-shell) {
   align-items: center;
 }
 
+.capsule-status {
+  min-width: 72px;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  color: #aebdcb;
+  font-size: 10px;
+  line-height: 1;
+}
+
 .traffic-light {
   width: 10px;
   height: 10px;
@@ -388,7 +398,7 @@ body:has(.detail-window-shell) {
 .capsule-copy {
   min-width: 0;
   display: grid;
-  gap: 2px;
+  gap: 3px;
 }
 
 .capsule-heading,
@@ -401,14 +411,14 @@ body:has(.detail-window-shell) {
 
 .capsule-heading {
   min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
+  display: grid;
+  gap: 2px;
 }
 
 .capsule-copy strong {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
+  letter-spacing: 0;
 }
 
 .capsule-copy span {
@@ -426,6 +436,50 @@ body:has(.detail-window-shell) {
 .capsule-copy > span {
   color: #cdd5df;
   font-size: 11px;
+}
+
+.capsule-kicker {
+  color: #75d6ff !important;
+  font-size: 9px !important;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+}
+
+.capsule-account {
+  color: #d7e4ed !important;
+}
+
+.capsule-summary {
+  color: #91a6b8 !important;
+}
+
+.capsule-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(62px, 1fr));
+  gap: 6px;
+}
+
+.capsule-metrics > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 7px 8px;
+  border: 1px solid rgba(162, 216, 242, 0.12);
+  border-radius: 10px;
+  background: rgba(4, 16, 27, 0.26);
+}
+
+.capsule-metrics span {
+  color: #8ea7b8;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+.capsule-metrics strong {
+  color: #ffffff;
+  font-size: 14px;
+  line-height: 1;
 }
 
 @keyframes spend-toast-rise {

@@ -8,7 +8,7 @@ const { startLocalBackend, stopLocalBackend } = require('./local-backend.cjs');
 const ROOT = path.resolve(__dirname, '..');
 const PORT = 1420;
 const APP_URL = `http://127.0.0.1:${PORT}/`;
-const APP_USER_MODEL_ID = 'CodexQuotaGlance.App';
+const APP_USER_MODEL_ID = 'QuotaPilot.App';
 const ICON_PATH = path.join(__dirname, 'icon.ico');
 const DEFAULT_CAPSULE_SIZE = { width: 620, height: 72 };
 const DEFAULT_DETAIL_SIZE = { width: 520, height: 180 };
@@ -23,7 +23,7 @@ const TEXT = {
   showHide: '\u663e\u793a/\u9690\u85cf\u80f6\u56ca',
   settings: '\u8bbe\u7f6e',
   quit: '\u9000\u51fa',
-  settingsTitle: 'Codex Quota Glance \u8bbe\u7f6e'
+  settingsTitle: 'QuotaPilot \u8bbe\u7f6e'
 };
 
 let capsuleWindow = null;
@@ -65,7 +65,7 @@ let lastLayout = {
 };
 
 async function createApp() {
-  app.setName('Codex Quota Glance');
+  app.setName('QuotaPilot');
   app.setAppUserModelId(APP_USER_MODEL_ID);
   Menu.setApplicationMenu(null);
   await ensureBackend();
@@ -241,7 +241,7 @@ async function createUpdateWindow(options = {}) {
     minimizable: false,
     autoHideMenuBar: true,
     skipTaskbar: false,
-    title: 'Codex Quota Glance 更新',
+    title: 'QuotaPilot 更新',
     backgroundColor: '#f6f8fb',
     icon: ICON_PATH,
     webPreferences: {
@@ -323,7 +323,7 @@ function settleQuotaRecovery(result) {
 
 function createTray() {
   tray = new Tray(createTrayImage());
-  tray.setToolTip('Codex Quota Glance');
+  tray.setToolTip('QuotaPilot');
   tray.setContextMenu(buildTrayMenu());
   tray.on('click', () => toggleCapsuleWindow());
 }
@@ -532,7 +532,7 @@ ipcMain.on('desktop-update-dismiss', (event) => {
 ipcMain.on('desktop-update-open-release', (event, url) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win && updateWindow && win !== updateWindow) return;
-  if (typeof url === 'string' && /^https:\/\/github\.com\/akitten-cn\/codex-quota-glance\/releases/.test(url)) {
+  if (typeof url === 'string' && /^https:\/\/github\.com\/weidaodeyinghuaji\/quota-pilot\/releases/.test(url)) {
     shell.openExternal(url);
   }
 });
@@ -828,7 +828,7 @@ async function downloadUpdateInstaller(asset, win) {
   }
   updateDownloadInProgress = true;
   try {
-    const downloadsDir = path.join(app.getPath('temp'), 'CodexQuotaGlance', 'updates');
+    const downloadsDir = path.join(app.getPath('temp'), 'QuotaPilot', 'updates');
     await fsp.mkdir(downloadsDir, { recursive: true });
     const target = path.join(downloadsDir, safeFileName(name));
     const result = await downloadWithElectronNet(url, target, Number(asset?.size) || 0, (progress) => {
@@ -852,7 +852,7 @@ async function downloadWithElectronNet(url, target, expectedSize, onProgress) {
       url,
       useSessionCookies: false
     });
-    request.setHeader('User-Agent', 'CodexQuotaGlance/0.1');
+    request.setHeader('User-Agent', 'QuotaPilot/0.1');
     request.on('response', (response) => {
       const statusCode = Number(response.statusCode) || 0;
       if (statusCode < 200 || statusCode >= 300) {
@@ -899,11 +899,11 @@ function isTrustedUpdateAsset(name, url) {
   return lowerName.endsWith('.exe') &&
     lowerName.includes('win') &&
     !lowerName.includes('portable') &&
-    /^https:\/\/github\.com\/akitten-cn\/codex-quota-glance\/releases\/download\//.test(String(url || ''));
+    /^https:\/\/github\.com\/weidaodeyinghuaji\/quota-pilot\/releases\/download\//.test(String(url || ''));
 }
 
 function safeFileName(name) {
-  return String(name || 'CodexQuotaGlance-update.exe').replace(/[<>:"/\\|?*\x00-\x1F]/g, '_');
+  return String(name || 'QuotaPilot-update.exe').replace(/[<>:"/\\|?*\x00-\x1F]/g, '_');
 }
 
 function setCapsuleWindowBounds(bounds) {

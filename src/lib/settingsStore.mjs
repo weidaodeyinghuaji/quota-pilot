@@ -1,6 +1,9 @@
 export const SETTINGS_STORAGE_KEY = 'codexQuotaGlanceSettings';
 
 export const DEFAULT_APP_SETTINGS = Object.freeze({
+  appearance: Object.freeze({
+    theme: 'dark'
+  }),
   newApi: Object.freeze({
     activeProviderId: 'default-new-api',
     providers: Object.freeze([
@@ -84,6 +87,7 @@ export function saveAppSettings(storage = browserStorage(), settings) {
 }
 
 export function mergeAppSettings(settings) {
+  const appearance = isObject(settings?.appearance) ? settings.appearance : {};
   const newApi = isObject(settings?.newApi) ? settings.newApi : {};
   const normalizedApiKey = normalizeApiKey(newApi.apiKey ?? DEFAULT_APP_SETTINGS.newApi.apiKey);
   const normalizedAccessToken = normalizeBearerToken(newApi.accessToken ?? DEFAULT_APP_SETTINGS.newApi.accessToken);
@@ -118,6 +122,10 @@ export function mergeAppSettings(settings) {
   const providers = applyTopLevelProviderOverrides(normalizedProviders, activeProviderId, newApi, baseNewApi);
   const activeProvider = providers.find((provider) => provider.id === activeProviderId) ?? providers[0];
   return {
+    appearance: {
+      ...DEFAULT_APP_SETTINGS.appearance,
+      theme: appearance.theme === 'light' ? 'light' : 'dark'
+    },
     newApi: {
       ...baseNewApi,
       activeProviderId,
@@ -385,6 +393,16 @@ export function updateCapsulePosition(settings, position) {
     window: {
       ...settings.window,
       capsulePosition: normalizeCapsulePosition(position)
+    }
+  };
+}
+
+export function updateAppearanceTheme(settings, theme) {
+  return {
+    ...settings,
+    appearance: {
+      ...settings.appearance,
+      theme: theme === 'light' ? 'light' : 'dark'
     }
   };
 }

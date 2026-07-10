@@ -8,6 +8,7 @@ type SettingsTab = 'api' | 'sync' | 'about';
 
 interface Props {
   settings: AppSettings;
+  onThemeChange: (theme: 'dark' | 'light') => void;
   onNewApiChange: (key: string, value: string) => void;
   onPricingChange: (key: string, value: string) => void;
   onProviderSave: (provider: NewApiManagedProvider) => void;
@@ -33,6 +34,7 @@ interface Props {
 
 export default function SettingsPage({
   settings,
+  onThemeChange,
   onNewApiChange,
   onProviderSave,
   onProviderSelect,
@@ -73,6 +75,22 @@ export default function SettingsPage({
         <div>
           <h2>设置</h2>
           <p>管理供应商、同步频率和更新检测。</p>
+        </div>
+        <div className="theme-toggle" role="group" aria-label="界面主题">
+          <button
+            className={settings.appearance.theme === 'dark' ? 'is-active' : ''}
+            type="button"
+            onClick={() => onThemeChange('dark')}
+          >
+            深色
+          </button>
+          <button
+            className={settings.appearance.theme === 'light' ? 'is-active' : ''}
+            type="button"
+            onClick={() => onThemeChange('light')}
+          >
+            浅色
+          </button>
         </div>
         <nav className="settings-tabs" aria-label="设置分类">
           <TabButton active={activeTab === 'api'} onClick={() => setActiveTab('api')}>

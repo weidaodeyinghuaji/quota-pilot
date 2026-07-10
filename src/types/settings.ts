@@ -35,6 +35,9 @@ export interface NewApiProviderConfig {
 }
 
 export interface AppSettings {
+  appearance: {
+    theme: 'dark' | 'light';
+  };
   newApi: {
     activeProviderId: string;
     providers: NewApiManagedProvider[];

@@ -6,6 +6,7 @@ import {
   upsertNewApiProvider,
   selectNewApiProvider,
   deleteNewApiProvider,
+  updateAppearanceTheme,
   updateCapsulePosition,
   updateNewApiSettings,
   updatePricingProfile,
@@ -16,6 +17,7 @@ const emptyStorage = createMemoryStorage();
 assert.deepEqual(loadAppSettings(emptyStorage), DEFAULT_APP_SETTINGS);
 assert.equal(DEFAULT_APP_SETTINGS.pricingProfile.initialBalance, 0);
 assert.equal(DEFAULT_APP_SETTINGS.pricingProfile.totalRecharged, 0);
+assert.equal(DEFAULT_APP_SETTINGS.appearance.theme, 'dark');
 assert.deepEqual(DEFAULT_APP_SETTINGS.window.capsulePosition, { x: 28, y: 28 });
 
 const existingStorage = createMemoryStorage({
@@ -52,6 +54,11 @@ assert.equal(loaded.pricingProfile.initialBalance, 88);
 assert.equal(loaded.pricingProfile.modelRatio, 1.7);
 assert.equal(loaded.pricingProfile.outputPricePerMillion, 8);
 assert.deepEqual(loaded.window.capsulePosition, { x: 121, y: 42 });
+assert.equal(loaded.appearance.theme, 'dark');
+
+const lightTheme = updateAppearanceTheme(loaded, 'light');
+assert.equal(lightTheme.appearance.theme, 'light');
+assert.equal(loaded.appearance.theme, 'dark');
 
 const movedCapsule = updateCapsulePosition(loaded, { x: 333.4, y: 88.8 });
 assert.deepEqual(movedCapsule.window.capsulePosition, { x: 333, y: 89 });
@@ -268,4 +275,3 @@ function testKeyFingerprint(value) {
   }
   return `fnv1a:${(hash >>> 0).toString(16).padStart(8, '0')}`;
 }
-

@@ -19,6 +19,7 @@ import {
   loadAppSettings,
   saveAppSettings,
   updateCapsulePosition,
+  updateAppearanceTheme,
   createNewApiProviderDraft,
   deleteNewApiProvider,
   duplicateNewApiProvider,
@@ -455,6 +456,7 @@ export default function App() {
   if (isUpdateWindow) {
     return (
       <UpdateWindowShell
+        theme={settings.appearance.theme}
         updateCheckState={updateCheckState}
         autoDownloadRequested={autoDownloadRequested}
         dismissed={updateReminderDismissed}
@@ -474,9 +476,10 @@ export default function App() {
 
   if (isSettingsWindow) {
     return (
-      <main className="settings-window-shell">
+      <main className="settings-window-shell" data-theme={settings.appearance.theme}>
         <SettingsPage
           settings={settings}
+          onThemeChange={(theme) => setSettings((current) => updateAppearanceTheme(current, theme))}
           onNewApiChange={(key, value) => setSettings((current) => updateNewApiSettings(current, key, value))}
           onPricingChange={(key, value) => setSettings((current) => updatePricingProfile(current, key, value))}
           onProviderSave={(provider) => setSettings((current) => upsertNewApiProvider(current, provider))}
@@ -498,7 +501,7 @@ export default function App() {
 
   if (isDetailWindow) {
     return (
-      <DetailWindowShell>
+      <DetailWindowShell theme={settings.appearance.theme}>
         <div className="capsule-popover is-detached-detail" data-no-drag="true">
           <DetailPanel snapshot={activeSnapshot} />
         </div>
@@ -507,7 +510,7 @@ export default function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" data-theme={settings.appearance.theme}>
       <section className="glance-surface" aria-label="Quota glance" data-settings-open={settingsOpen ? 'true' : 'false'}>
         <DraggableCapsule
           position={settings.window.capsulePosition}
@@ -547,8 +550,9 @@ export default function App() {
       )}
       {settingsOpen && !isDesktopCapsule && (
         <div className="settings-drawer" data-no-drag="true">
-          <SettingsPage
-            settings={settings}
+        <SettingsPage
+          settings={settings}
+          onThemeChange={(theme) => setSettings((current) => updateAppearanceTheme(current, theme))}
             onNewApiChange={(key, value) => setSettings((current) => updateNewApiSettings(current, key, value))}
             onPricingChange={(key, value) => setSettings((current) => updatePricingProfile(current, key, value))}
             onProviderSave={(provider) => setSettings((current) => upsertNewApiProvider(current, provider))}
@@ -581,6 +585,7 @@ export default function App() {
 }
 
 function UpdateWindowShell({
+  theme,
   updateCheckState,
   autoDownloadRequested,
   dismissed,
@@ -588,6 +593,7 @@ function UpdateWindowShell({
   onOpenRelease,
   onDownloadUpdate
 }: {
+  theme: 'dark' | 'light';
   updateCheckState: UpdateCheckState;
   autoDownloadRequested: boolean;
   dismissed: boolean;
@@ -657,7 +663,7 @@ function UpdateWindowShell({
 
   if (updateCheckState.status === 'loading' || updateCheckState.status === 'idle') {
     return (
-      <main className="update-window-shell">
+      <main className="update-window-shell" data-theme={theme}>
         <section className="update-reminder update-reminder-inline" aria-label="检查更新">
           <h2>正在检查更新</h2>
           <p>启动后自动检查 QuotaPilot 是否有新版本。</p>
@@ -667,7 +673,7 @@ function UpdateWindowShell({
   }
 
   return (
-    <main className="update-window-shell">
+    <main className="update-window-shell" data-theme={theme}>
       <UpdateReminder
         updateCheckState={updateCheckState}
         dismissed={dismissed}
@@ -690,7 +696,7 @@ function UpdateWindowShell({
   );
 }
 
-function DetailWindowShell({ children }: { children: React.ReactNode }) {
+function DetailWindowShell({ children, theme }: { children: React.ReactNode; theme: 'dark' | 'light' }) {
   const shellRef = React.useRef<HTMLElement | null>(null);
 
   React.useLayoutEffect(() => {
@@ -720,7 +726,7 @@ function DetailWindowShell({ children }: { children: React.ReactNode }) {
   }, [children]);
 
   return (
-    <main ref={shellRef} className="detail-window-shell">
+    <main ref={shellRef} className="detail-window-shell" data-theme={theme}>
       {children}
     </main>
   );

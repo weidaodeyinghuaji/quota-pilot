@@ -52,6 +52,10 @@ assert.match(css, /\.traffic-close\.is-active\s*{[\s\S]*rgba\(255,\s*95,\s*87,\s
 assert.match(css, /\.traffic-minimize\.is-active\s*{[\s\S]*rgba\(255,\s*189,\s*46,\s*0\.7\)/);
 assert.match(css, /\.traffic-ok\.is-active\s*{[\s\S]*rgba\(40,\s*200,\s*64,\s*0\.66\)/);
 assert.match(css, /@keyframes signal-breathe\s*{[\s\S]*0 0 20px currentColor/);
+assert.match(css, /\.theme-toggle\s*{/);
+assert.match(css, /\[data-theme="light"\]\s+\.floating-capsule/);
+assert.match(css, /\[data-theme="dark"\]\.settings-window-shell/);
+assert.match(css, /\[data-theme="dark"\]\.detail-window-shell/);
 assert.match(css, /\.draggable-capsule\[data-popover-placement="top"\]\s+\.capsule-popover\s*{[\s\S]*bottom:\s*calc\(100% \+ 8px\);/);
 assert.match(css, /\.draggable-capsule\[data-desktop-shell="true"\]\[data-popover-placement="top"\]\s*{[\s\S]*top:\s*0;/);
 

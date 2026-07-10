@@ -44,6 +44,8 @@ assert.match(css, /@keyframes popover-slide-up/);
 assert.match(css, /@keyframes popover-slide-down/);
 assert.match(css, /\.draggable-capsule\[data-desktop-shell="true"\]\s*{[\s\S]*max-width:\s*none;/);
 assert.match(css, /\.draggable-capsule\[data-desktop-shell="true"\] \.floating-capsule\s*{[\s\S]*max-width:\s*none;/);
+assert.match(css, /\.draggable-capsule\[data-desktop-shell="true"\] \.floating-capsule\s*{[\s\S]*width:\s*440px;/);
+assert.match(css, /\.draggable-capsule\[data-desktop-shell="true"\] \.floating-capsule\s*{[\s\S]*min-width:\s*440px;/);
 assert.match(css, /\.capsule-popover \.section-band\s*{[\s\S]*padding:\s*10px;/);
 assert.match(css, /\.capsule-popover dl\s*{[\s\S]*font-size:\s*11\.5px;/);
 assert.match(css, /\.capsule-popover dl\s*{[\s\S]*gap:\s*4px 8px;/);

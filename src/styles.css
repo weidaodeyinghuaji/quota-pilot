@@ -301,6 +301,8 @@ body:has(.detail-window-shell) {
 }
 
 .draggable-capsule[data-desktop-shell="true"] .floating-capsule {
+  width: 440px;
+  min-width: 440px;
   max-width: none;
 }
 

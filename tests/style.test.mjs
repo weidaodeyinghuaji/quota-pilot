@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
 
 assert.match(css, /\.floating-capsule\s*{[\s\S]*width:\s*min\(440px, calc\(100vw - 32px\)\);/);
-assert.match(css, /\.floating-capsule\s*{[\s\S]*min-height:\s*106px;/);
+assert.match(css, /\.capsule-main\s*{[\s\S]*min-height:\s*132px;/);
 assert.match(css, /\.floating-capsule\s*{[\s\S]*grid-template-areas:/);
 assert.match(css, /\.draggable-capsule\s*{[\s\S]*position:\s*fixed;/);
 assert.match(css, /\.draggable-capsule\s*{[\s\S]*z-index:\s*20;/);
@@ -58,6 +58,8 @@ assert.match(css, /\.theme-toggle\s*{/);
 assert.match(css, /\[data-theme="light"\]\s+\.floating-capsule/);
 assert.match(css, /\[data-theme="dark"\]\.settings-window-shell/);
 assert.match(css, /\[data-theme="dark"\]\.detail-window-shell/);
+assert.match(css, /\.capsule-refresh-note\s*{/);
+assert.match(css, /\.quota-refresh-card\s*{/);
 assert.match(css, /\.draggable-capsule\[data-popover-placement="top"\]\s+\.capsule-popover\s*{[\s\S]*bottom:\s*calc\(100% \+ 8px\);/);
 assert.match(css, /\.draggable-capsule\[data-desktop-shell="true"\]\[data-popover-placement="top"\]\s*{[\s\S]*top:\s*0;/);
 

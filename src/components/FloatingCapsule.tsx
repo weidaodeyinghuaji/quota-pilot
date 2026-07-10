@@ -1,5 +1,6 @@
 import React from 'react';
 import { getCapsuleDisplay } from '../lib/display.mjs';
+import { formatQuotaRecovery } from '../lib/quotaAlerts.mjs';
 import type { ProviderSnapshot } from '../types/provider';
 
 interface Props {
@@ -58,6 +59,12 @@ export default function FloatingCapsule({
         <Metric label={metrics.primaryLabel} value={metrics.primaryValue} progress={metrics.primaryProgress} />
         <Metric label={metrics.secondaryLabel} value={metrics.secondaryValue} progress={metrics.secondaryProgress} />
       </div>
+      {density === 'standard' && snapshot?.providerType === 'codex' && (
+        <div className="capsule-refresh-note">
+          <strong>5 小时刷新：{formatResetTime(snapshot.quota?.window5h?.resetAt)}</strong>
+          <span>{formatQuotaRecovery(snapshot.quota?.window5h?.resetAt)} · 7 天刷新：{formatResetTime(snapshot.quota?.weekly?.resetAt)}</span>
+        </div>
+      )}
       </button>
       {density === 'standard' && (
         <div className="capsule-actions" aria-label="快捷操作" data-no-drag="true">
@@ -130,6 +137,19 @@ function formatCompact(value?: number) {
   if (number >= 1_000_000) return `${(number / 1_000_000).toFixed(1)}M`;
   if (number >= 1_000) return `${(number / 1_000).toFixed(1)}K`;
   return String(number);
+}
+
+function formatResetTime(value?: string) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleString('zh-CN', {
+    hour12: false,
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 }
 
 function getSignalState(activity: ProviderSnapshot['activity'] | undefined, snapshot: ProviderSnapshot | null) {

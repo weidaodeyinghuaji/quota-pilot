@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, net, screen, session, shell } = require('electron');
+const { app, BrowserWindow, Menu, Notification, Tray, ipcMain, nativeImage, net, screen, session, shell } = require('electron');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const http = require('node:http');
@@ -454,6 +454,14 @@ ipcMain.on('desktop-quota-recovery-confirm', (event) => {
   if (!win || win !== quotaRecoveryWindow) return;
   settleQuotaRecovery('confirmed');
   quotaRecoveryWindow.close();
+});
+
+ipcMain.on('desktop-quota-alert', (event, payload) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win !== capsuleWindow || !Notification.isSupported()) return;
+  const title = String(payload?.title || 'QuotaPilot 提醒').slice(0, 80);
+  const body = String(payload?.body || '').slice(0, 240);
+  new Notification({ title, body, icon: ICON_PATH }).show();
 });
 
 ipcMain.on('desktop-layout-update', (event, layout) => {

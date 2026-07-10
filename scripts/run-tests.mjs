@@ -6,6 +6,7 @@ const nodeTests = [
   'tests/new-api-log-sync.test.mjs',
   'tests/display.test.mjs',
   'tests/quota-amount.test.mjs',
+  'tests/quota-alerts.test.mjs',
   'tests/spend-events.test.mjs',
   'tests/codex-token-ingestion.test.mjs',
   'tests/codex-runtime-state.test.mjs',

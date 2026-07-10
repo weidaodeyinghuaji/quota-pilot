@@ -43,7 +43,14 @@ function CodexDetails({ snapshot }: { snapshot: ProviderSnapshot }) {
     Number.isFinite(Number(tokenUsage?.outputTokens));
 
   return (
-    <dl>
+    <>
+      {hasCodexQuotaData && (
+        <div className="quota-refresh-grid" aria-label="额度恢复时间">
+          <QuotaRefreshCard label="5 小时额度恢复" resetAt={snapshot.quota?.window5h?.resetAt} />
+          <QuotaRefreshCard label="7 天额度恢复" resetAt={snapshot.quota?.weekly?.resetAt} />
+        </div>
+      )}
+      <dl>
       <dt>状态</dt>
       <dd>{statusText(snapshot.status)}</dd>
       {hasCodexQuotaData ? (
@@ -89,7 +96,18 @@ function CodexDetails({ snapshot }: { snapshot: ProviderSnapshot }) {
           <dd>{formatDataFreshness(tokenUpdatedAt)}</dd>
         </>
       )}
-    </dl>
+      </dl>
+    </>
+  );
+}
+
+function QuotaRefreshCard({ label, resetAt }: { label: string; resetAt?: string }) {
+  return (
+    <section className="quota-refresh-card">
+      <span>{label}</span>
+      <strong>{formatDateTime(resetAt)}</strong>
+      <small>{formatRecoveryCountdown(resetAt)}</small>
+    </section>
   );
 }
 
@@ -317,6 +335,18 @@ function formatDateTime(value?: string) {
     minute: '2-digit',
     second: '2-digit'
   });
+}
+
+function formatRecoveryCountdown(value?: string) {
+  if (!value) return '刷新时间暂不可用';
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return '刷新时间暂不可用';
+  const minutes = Math.ceil((timestamp - Date.now()) / 60000);
+  if (minutes <= 0) return '额度正在刷新';
+  if (minutes < 60) return `约 ${minutes} 分钟后恢复`;
+  const hours = Math.floor(minutes / 60);
+  const restMinutes = minutes % 60;
+  return restMinutes ? `约 ${hours} 小时 ${restMinutes} 分钟后恢复` : `约 ${hours} 小时后恢复`;
 }
 
 function formatDataFreshness(value?: string) {

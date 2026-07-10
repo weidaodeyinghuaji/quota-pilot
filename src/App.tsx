@@ -11,6 +11,7 @@ import { diagnoseNewApiAccount, fetchLocalLogSummary, syncLocalNewApiLogs } from
 import { canUseNewApiLocalData } from './lib/newApiClient.mjs';
 import { buildSnapshots } from './lib/snapshotFactory.mjs';
 import { estimateTokenCost } from './lib/pricing.mjs';
+import { getQuotaAlertCandidates } from './lib/quotaAlerts.mjs';
 import { createRefreshCoordinator } from './lib/refreshCoordinator.mjs';
 import { APP_VERSION, checkLatestRelease, GITHUB_RELEASES_URL } from './lib/updateChecker.mjs';
 import type { UpdateCheckState } from './types/settings';
@@ -57,6 +58,7 @@ export default function App() {
   const [latestCodexTokenEvent, setLatestCodexTokenEvent] = React.useState(null);
   const [codexTokenSummary, setCodexTokenSummary] = React.useState(null);
   const [quotaReminder, setQuotaReminder] = React.useState(null);
+  const seenQuotaAlertIdsRef = React.useRef(loadSeenQuotaAlertIds());
   const seenSpendEventIdRef = React.useRef('');
   const [newApiError, setNewApiError] = React.useState('');
   const [updateCheckState, setUpdateCheckState] = React.useState<UpdateCheckState>({
@@ -86,6 +88,21 @@ export default function App() {
   React.useEffect(() => {
     saveAppSettings(undefined, settings);
   }, [settings]);
+
+  React.useEffect(() => {
+    if (!isDesktopCapsule || !window.codexQuotaDesktop?.showQuotaAlert) return;
+    const nextSeenIds = new Set(seenQuotaAlertIdsRef.current);
+    const alerts = getQuotaAlertCandidates(activeSnapshot);
+    for (const alert of alerts) {
+      if (nextSeenIds.has(alert.id)) continue;
+      nextSeenIds.add(alert.id);
+      window.codexQuotaDesktop.showQuotaAlert(alert);
+    }
+    if (nextSeenIds.size !== seenQuotaAlertIdsRef.current.size) {
+      seenQuotaAlertIdsRef.current = nextSeenIds;
+      saveSeenQuotaAlertIds(nextSeenIds);
+    }
+  }, [activeSnapshot, isDesktopCapsule]);
 
   const runUpdateCheck = React.useCallback(async ({ silent = false } = {}) => {
     if (!silent) {
@@ -826,6 +843,26 @@ function UpdateReminder({
       {dialog}
     </div>
   );
+}
+
+const QUOTA_ALERT_STORAGE_KEY = 'quotaPilotSeenQuotaAlerts';
+
+function loadSeenQuotaAlertIds() {
+  try {
+    const raw = window.localStorage.getItem(QUOTA_ALERT_STORAGE_KEY);
+    const values = JSON.parse(raw || '[]');
+    return new Set(Array.isArray(values) ? values.filter((value) => typeof value === 'string').slice(-100) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveSeenQuotaAlertIds(ids: Set<string>) {
+  try {
+    window.localStorage.setItem(QUOTA_ALERT_STORAGE_KEY, JSON.stringify([...ids].slice(-100)));
+  } catch {
+    // Notifications can still work when browser storage is unavailable.
+  }
 }
 
 function formatBytes(value: number) {

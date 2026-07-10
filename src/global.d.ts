@@ -11,6 +11,7 @@ declare global {
       openSettings(): void;
       openQuotaRecoveryReminder(payload: { resetAt: number }): Promise<'confirmed' | 'dismissed'>;
       confirmQuotaRecoveryReminder(): void;
+      showQuotaAlert(payload: { title: string; body: string }): void;
       updateLayout(layout: {
         capsule: { x: number; y: number; width: number; height: number };
         toast?: { height: number };

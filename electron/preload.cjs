@@ -25,6 +25,9 @@ contextBridge.exposeInMainWorld('codexQuotaDesktop', {
   confirmQuotaRecoveryReminder() {
     ipcRenderer.send('desktop-quota-recovery-confirm');
   },
+  showQuotaAlert(payload) {
+    ipcRenderer.send('desktop-quota-alert', payload);
+  },
   updateLayout(layout) {
     ipcRenderer.send('desktop-layout-update', layout);
   },

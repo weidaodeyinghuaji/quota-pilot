@@ -14,5 +14,11 @@ assert.match(source, /status === 'waiting_for_user'/);
 assert.match(source, /status === 'auto_reviewing'/);
 assert.match(source, /status === 'finished'/);
 assert.match(source, /is-breathing/);
+assert.match(source, /当前 API 服务/);
+assert.match(source, /当前 Codex 登录/);
+assert.match(source, /今日 Token/);
+assert.match(source, /可用余额/);
+assert.match(source, /5 小时剩余/);
+assert.match(source, /7 天剩余/);
 
 console.log('floating capsule source tests passed');

@@ -190,17 +190,19 @@ body:has(.detail-window-shell) {
   position: relative;
   z-index: 1;
   margin-top: 0;
-  width: max-content;
-  min-width: 380px;
-  max-width: min(calc(100vw - 56px), 720px);
-  min-height: 74px;
+  width: min(440px, calc(100vw - 32px));
+  min-width: min(400px, calc(100vw - 32px));
+  min-height: 106px;
   display: grid;
-  grid-template-columns: auto minmax(180px, 1fr) auto;
-  align-items: center;
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "copy status"
+    "metrics metrics";
+  align-items: start;
+  gap: 12px 16px;
   border: 1px solid rgba(130, 204, 255, 0.22);
-  border-radius: 18px;
-  padding: 11px 14px;
+  border-radius: 10px;
+  padding: 13px;
   color: #f8fbff;
   background: linear-gradient(135deg, rgba(18, 36, 52, 0.98), rgba(26, 31, 43, 0.98));
   box-shadow: 0 12px 30px rgba(8, 19, 31, 0.22);
@@ -349,10 +351,12 @@ body:has(.detail-window-shell) {
 }
 
 .capsule-status {
-  min-width: 72px;
-  display: grid;
-  justify-items: center;
-  gap: 6px;
+  grid-area: status;
+  min-width: 86px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
   color: #aebdcb;
   font-size: 10px;
   line-height: 1;
@@ -427,6 +431,7 @@ body:has(.detail-window-shell) {
 }
 
 .capsule-copy {
+  grid-area: copy;
   min-width: 0;
   display: grid;
   gap: 3px;
@@ -473,7 +478,7 @@ body:has(.detail-window-shell) {
   color: #75d6ff !important;
   font-size: 9px !important;
   font-weight: 800;
-  letter-spacing: 0.8px;
+  letter-spacing: 0;
 }
 
 .capsule-account {
@@ -485,31 +490,32 @@ body:has(.detail-window-shell) {
 }
 
 .capsule-metrics {
+  grid-area: metrics;
   display: grid;
-  grid-template-columns: repeat(2, minmax(62px, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .capsule-metrics > div {
   min-width: 0;
   display: grid;
-  gap: 3px;
-  padding: 7px 8px;
+  gap: 4px;
+  padding: 8px 9px;
   border: 1px solid rgba(162, 216, 242, 0.12);
-  border-radius: 10px;
+  border-radius: 7px;
   background: rgba(4, 16, 27, 0.26);
 }
 
 .capsule-metrics span {
   color: #8ea7b8;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.4px;
+  letter-spacing: 0;
 }
 
 .capsule-metrics strong {
   color: #ffffff;
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1;
 }
 

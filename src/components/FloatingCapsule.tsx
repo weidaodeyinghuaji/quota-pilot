@@ -33,7 +33,7 @@ export default function FloatingCapsule({ snapshot, activity, expanded = false, 
       </div>
       <div className="capsule-copy">
         <div className="capsule-heading">
-          <span className="capsule-kicker">{snapshot?.providerType === 'new-api' ? 'API PROVIDER' : 'ACTIVE CODEX LOGIN'}</span>
+          <span className="capsule-kicker">{snapshot?.providerType === 'new-api' ? '当前 API 服务' : '当前 Codex 登录'}</span>
           <strong>{snapshot?.providerName ?? 'QuotaPilot'}</strong>
         </div>
         <span className="capsule-account">{accountLabel}</span>
@@ -62,19 +62,19 @@ function getCapsuleMetrics(snapshot: ProviderSnapshot | null) {
   if (snapshot?.providerType === 'new-api') {
     const todayTokens = snapshot.localLogs?.today?.totalTokens ?? snapshot.usage?.totalTokens;
     const balance = Number(snapshot.balance?.balance);
-    const currency = snapshot.amountDisplayMode === 'usd' ? 'USD' : 'CNY';
+    const currency = snapshot.amountDisplayMode === 'usd' ? '$' : '¥';
     return {
-      primaryLabel: 'TODAY TOKEN',
+      primaryLabel: '今日 Token',
       primaryValue: formatCompact(todayTokens),
-      secondaryLabel: 'BALANCE',
+      secondaryLabel: '可用余额',
       secondaryValue: Number.isFinite(balance) ? `${currency} ${balance.toFixed(2)}` : '-'
     };
   }
 
   return {
-    primaryLabel: '5H LEFT',
+    primaryLabel: '5 小时剩余',
     primaryValue: formatPercent(snapshot?.quota?.window5h?.remainingPercent),
-    secondaryLabel: '7D LEFT',
+    secondaryLabel: '7 天剩余',
     secondaryValue: formatPercent(snapshot?.quota?.weekly?.remainingPercent)
   };
 }

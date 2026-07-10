@@ -3,9 +3,9 @@ import { readFileSync } from 'node:fs';
 
 const css = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8');
 
-assert.match(css, /\.floating-capsule\s*{[\s\S]*width:\s*max-content;/);
-assert.match(css, /\.floating-capsule\s*{[\s\S]*min-width:\s*380px;/);
-assert.match(css, /\.floating-capsule\s*{[\s\S]*max-width:\s*min\(calc\(100vw - 56px\), 720px\);/);
+assert.match(css, /\.floating-capsule\s*{[\s\S]*width:\s*min\(440px, calc\(100vw - 32px\)\);/);
+assert.match(css, /\.floating-capsule\s*{[\s\S]*min-height:\s*106px;/);
+assert.match(css, /\.floating-capsule\s*{[\s\S]*grid-template-areas:/);
 assert.match(css, /\.draggable-capsule\s*{[\s\S]*position:\s*fixed;/);
 assert.match(css, /\.draggable-capsule\s*{[\s\S]*z-index:\s*20;/);
 assert.match(css, /\.draggable-capsule\s*{[\s\S]*touch-action:\s*none;/);
